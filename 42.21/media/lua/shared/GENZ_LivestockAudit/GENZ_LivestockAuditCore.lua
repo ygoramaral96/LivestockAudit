@@ -28,6 +28,13 @@ Core.BIRTH_NEAR = 0.95
 -- A change of zone counts only after this many sweeps in a row (~1 minute each), so an
 -- animal walking along the fence line does not log a leave/enter pair every minute.
 Core.ZONE_CONFIRM_PASSES = 2
+-- The same actor doing the same thing to the same animal is logged once per this many
+-- seconds: a guard's isValid() runs in bursts and a fight is many hits.
+Core.REPEAT_SECONDS = 60
+-- A death this soon after an ALLOWED attack is blamed on the attacker.
+Core.ATTACK_WINDOW_SECONDS = 300
+-- Leaving the zone this soon after someone moved the animal names who moved it.
+Core.MOVER_WINDOW_SECONDS = 600
 
 local NEEDS = { "hunger", "thirst" }
 
@@ -90,9 +97,32 @@ function Core.prune(store, now, isClaimed)
     return #expired
 end
 
+-- Returns true when this key was already logged less than REPEAT_SECONDS ago; otherwise
+-- marks it. Stale keys are forgotten on the way, so visitors do not pile up in the state.
+function Core.isRepeat(state, key, now)
+    state.recent = state.recent or {}
+    local last = state.recent[key]
+    if last and now - last < Core.REPEAT_SECONDS then return true end
+    state.recent[key] = now
+    local stale = {}
+    for other, seen in pairs(state.recent) do
+        if now - seen >= Core.REPEAT_SECONDS then table.insert(stale, other) end
+    end
+    for _, other in ipairs(stale) do state.recent[other] = nil end
+    return false
+end
+
+-- mark = { actor, actorName, action, ts }; returns it only when at most `window` seconds old.
+function Core.recentMark(mark, now, window)
+    if mark and now - mark.ts <= window then return mark end
+    return nil
+end
+
 -- snapshot = { hunger, thirst, geriatric } read from the dead animal. A value that could
--- not be read is nil and simply does not match.
-function Core.deathCause(snapshot)
+-- not be read is nil and simply does not match. recentAttack = an allowed attack inside
+-- ATTACK_WINDOW_SECONDS (see recentMark), or nil.
+function Core.deathCause(snapshot, recentAttack)
+    if recentAttack then return "attacked" end
     if snapshot.hunger and snapshot.hunger > Core.DEATH_NEED then return "hunger" end
     if snapshot.thirst and snapshot.thirst > Core.DEATH_NEED then return "thirst" end
     if snapshot.geriatric then return "old_age" end
@@ -192,6 +222,9 @@ function Core.consoleLine(aid, entry)
     }
     if entry.zone then
         table.insert(parts, "zone=" .. tostring(entry.zone))
+    end
+    if entry.actorName then
+        table.insert(parts, "actor=" .. tostring(entry.actorName) .. "(" .. tostring(entry.actor) .. ")")
     end
     if entry.detail then
         local keys = {}
