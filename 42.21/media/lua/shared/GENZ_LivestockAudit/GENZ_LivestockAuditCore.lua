@@ -25,6 +25,9 @@ Core.PREGNANCY_VISIBLE = 0.2
 -- A pregnancy last seen at 95%+ that ends is a birth; ending earlier has no known reason
 -- and is logged as such, never guessed.
 Core.BIRTH_NEAR = 0.95
+-- A change of zone counts only after this many sweeps in a row (~1 minute each), so an
+-- animal walking along the fence line does not log a leave/enter pair every minute.
+Core.ZONE_CONFIRM_PASSES = 2
 
 local NEEDS = { "hunger", "thirst" }
 
@@ -127,6 +130,39 @@ function Core.growthFrom(state, animalType)
     return nil
 end
 
+-- zoneKey = key of the zone group the animal is in now, or false when it is in no zone.
+-- state.zone is nil until the first sighting, which only sets the baseline (the animal was
+-- already there; nothing happened). Returns the transitions to record, in order:
+--   { kind = "LEFT_ZONE", zone = <left>, other = <new key or false> }
+--   { kind = "ENTERED_ZONE", zone = <entered>, other = <old key or false> }
+function Core.zoneTransitions(state, zoneKey)
+    if state.zone == nil then
+        state.zone = zoneKey
+        return {}
+    end
+    if zoneKey == state.zone then
+        state.pendingZone, state.pendingPasses = nil, 0
+        return {}
+    end
+    if state.pendingZone == zoneKey then
+        state.pendingPasses = state.pendingPasses + 1
+    else
+        state.pendingZone, state.pendingPasses = zoneKey, 1
+    end
+    if state.pendingPasses < Core.ZONE_CONFIRM_PASSES then return {} end
+
+    local transitions = {}
+    if state.zone then
+        table.insert(transitions, { kind = "LEFT_ZONE", zone = state.zone, other = zoneKey })
+    end
+    if zoneKey then
+        table.insert(transitions, { kind = "ENTERED_ZONE", zone = zoneKey, other = state.zone })
+    end
+    state.zone = zoneKey
+    state.pendingZone, state.pendingPasses = nil, 0
+    return transitions
+end
+
 -- needs = { hunger = 0..1, thirst = 0..1 }; returns the needs that just became critical.
 function Core.criticalNeeds(state, needs)
     state.critical = state.critical or {}
@@ -154,6 +190,9 @@ function Core.consoleLine(aid, entry)
         "owner=" .. tostring(entry.ownerName) .. "(" .. tostring(entry.owner) .. ")",
         "at=" .. tostring(entry.x) .. "," .. tostring(entry.y) .. "," .. tostring(entry.z),
     }
+    if entry.zone then
+        table.insert(parts, "zone=" .. tostring(entry.zone))
+    end
     if entry.detail then
         local keys = {}
         for key in pairs(entry.detail) do table.insert(keys, key) end

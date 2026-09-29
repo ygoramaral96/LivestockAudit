@@ -6,8 +6,10 @@
 -- the slice they ask for (phases F2/F3). Every entry is echoed to the server console with
 -- the [GENZ_LivestockAudit] tag.
 --
--- Kinds recorded so far (F1a): CLAIMED, RELEASED, DIED, PREGNANT, FERTILIZED, GAVE_BIRTH,
--- PREGNANCY_ENDED, GREW_UP, CRITICAL.
+-- Kinds recorded so far: CLAIMED, RELEASED, DIED, PREGNANT, FERTILIZED, GAVE_BIRTH,
+-- PREGNANCY_ENDED, GREW_UP, CRITICAL (F1a); LEFT_ZONE, ENTERED_ZONE (F1b).
+-- Every entry carries the zone group the animal was in, which is what the owner's
+-- History (F3) filters by; an entry outside any zone is for staff only (decision D13).
 
 if isClient() and not isServer() then return end
 
@@ -49,8 +51,38 @@ local function positionOf(animal, record)
     return { x = record.x, y = record.y, z = record.z }
 end
 
-local function logEvent(aid, kind, record, animal, detail)
+-- Connected zones count as one: walking into a linked pen is not leaving. The group key is
+-- the smallest id in the group, compared as text so it works whatever type the id has.
+local function zoneGroupKey(zone)
+    local key = tostring(zone:getId())
+    local group = DesignationZoneAnimal.getAllDZones(nil, zone, nil)
+    for i = 0, group:size() - 1 do
+        local id = tostring(group:get(i):getId())
+        if id < key then key = id end
+    end
+    return key
+end
+
+-- An animal inside a hutch has no zone of its own; the hutch's zone counts, so going to
+-- the nest is not leaving. false = in no zone at all.
+local function zoneKeyOf(animal)
+    local zone = animal:getDZone()
+    if not zone then
+        local hutch = animal:getHutch()
+        if hutch then
+            local entrance = hutch:getEntrySq()
+            zone = DesignationZoneAnimal.getZone(entrance:getX(), entrance:getY(), entrance:getZ())
+        end
+    end
+    if not zone then return false end
+    return zoneGroupKey(zone)
+end
+
+-- zone: the group key to file the entry under; when nil, the zone the animal was last
+-- confirmed in. false (no zone) is stored as no zone at all.
+local function logEvent(aid, kind, record, animal, detail, zone)
     local where = positionOf(animal, record)
+    if zone == nil then zone = Core.bucketFor(store, aid).state.zone end
     local entry = {
         t = getGameTime():getWorldAgeHours(),
         ts = os.time(),
@@ -61,6 +93,7 @@ local function logEvent(aid, kind, record, animal, detail)
         type = record.type,
         breed = record.breed,
         x = where.x, y = where.y, z = where.z,
+        zone = zone or nil,
         detail = detail,
     }
     Core.append(store, aid, entry)
@@ -69,7 +102,10 @@ end
 
 local handlers = {}
 
+-- The claim is the first sighting: it sets the zone baseline, so the entry is filed under
+-- the zone the animal was claimed in.
 function handlers.claimed(data)
+    Core.zoneTransitions(Core.bucketFor(store, data.aid).state, zoneKeyOf(data.animal))
     logEvent(data.aid, "CLAIMED", data.record, data.animal, { kind = data.record.kind })
 end
 
@@ -122,6 +158,13 @@ function handlers.observed(data)
     local needs = { hunger = animal:getHunger(), thirst = animal:getThirst() }
     for _, need in ipairs(Core.criticalNeeds(state, needs)) do
         logEvent(data.aid, "CRITICAL", data.record, animal, { need = need })
+    end
+
+    -- LEFT_ZONE is filed under the zone it left, so it shows in that zone's History even
+    -- with the animal now outside; "none" in the detail means no zone at all.
+    for _, change in ipairs(Core.zoneTransitions(state, zoneKeyOf(animal))) do
+        local detailKey = change.kind == "LEFT_ZONE" and "to" or "from"
+        logEvent(data.aid, change.kind, data.record, animal, { [detailKey] = change.other or "none" }, change.zone)
     end
 end
 
