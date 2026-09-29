@@ -8,7 +8,8 @@
 --
 -- Kinds recorded so far: CLAIMED, RELEASED, DIED, PREGNANT, FERTILIZED, GAVE_BIRTH,
 -- PREGNANCY_ENDED, GREW_UP, CRITICAL (F1a); LEFT_ZONE, ENTERED_ZONE (F1b); ATTACKED,
--- HANDLED (F1c).
+-- HANDLED (F1c); PERMISSION, REATTACHED, DOWNED + the origin of a CLAIMED and the
+-- reason of a RELEASED ("capsule", "genzball", "captured"...) (F1d).
 -- Every entry carries the zone group the animal was in, which is what the owner's
 -- History (F3) filters by; an entry outside any zone is for staff only (decision D13).
 
@@ -128,7 +129,32 @@ local handlers = {}
 -- the zone the animal was claimed in.
 function handlers.claimed(data)
     Core.zoneTransitions(Core.bucketFor(store, data.aid).state, zoneKeyOf(data.animal))
-    logEvent(data.aid, "CLAIMED", data.record, { animal = data.animal, detail = { kind = data.record.kind } })
+    logEvent(data.aid, "CLAIMED", data.record, {
+        animal = data.animal,
+        detail = { kind = data.record.kind, origin = data.origin or "unspecified" },
+    })
+end
+
+-- The owner giving or taking access: who can now touch the animal is part of its story.
+function handlers.permission(data)
+    logEvent(data.aid, "PERMISSION", data.record, {
+        actor = actorOf(data.actor),
+        detail = {
+            change = data.change, flag = data.flag, value = data.value,
+            target = data.target, targetName = data.targetName,
+        },
+    })
+end
+
+-- Engine-side incidents the creatures domain already detects; staff-facing.
+function handlers.reattached(data)
+    logEvent(data.aid, "REATTACHED", data.record, { animal = data.animal, detail = { via = data.via } })
+end
+
+function handlers.downed(data)
+    logEvent(data.aid, "DOWNED", data.record, {
+        animal = data.animal, detail = { health = data.health, state = data.state },
+    })
 end
 
 function handlers.released(data)
@@ -252,8 +278,8 @@ function handlers.observed(data)
     end
 end
 
--- Kinds without a handler belong to later phases (delivered, captured...) and are ignored
--- until then; the announcer does not care who listens to what.
+-- A kind without a handler is ignored: the announcer does not care who listens to what,
+-- and a new kind added there must not break this listener.
 local function onAnimalEvent(kind, data)
     local handler = handlers[kind]
     if not handler then return end
