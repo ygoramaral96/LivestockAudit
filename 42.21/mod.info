@@ -1,0 +1,6 @@
+name=GENZ Livestock Audit
+id=GENZ_LivestockAudit
+author=Project Gen Z (Rougy)
+modversion=0.1.0
+require=GENZ_Equipamentos
+description=Audit trail of claimed animals (card #192). The server records what happens to each claimed animal - claim, release, death with its cause, pregnancy, birth, growth, critical hunger or thirst - so staff and owners can read it in game. Listens to GENZ_Equipamentos; changes nothing on its own.
