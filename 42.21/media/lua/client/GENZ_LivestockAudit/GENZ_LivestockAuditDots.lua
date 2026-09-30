@@ -60,26 +60,6 @@ local function cachedCells(animal, level)
     return cache[animal]
 end
 
--- Column x positions inside the list for the current tab. The first column starts after the
--- vanilla "In hutch" note, which vanilla writes 20 px after the Info button
--- (ISDesignationAnimalZoneUI.lua:54-58).
-local function layoutOf(panel, level, tab)
-    local first = panel.ui.animalbuttons[1]
-    if not first then return nil end
-    local anchor = first:isVisible() and first:getRight() or first:getX()
-    local x = anchor + 20 + measure(getText("IGUI_DesignationZone_InHutch")) + COLUMN_GAP
-    local columns = {}
-    for _, column in ipairs(tab.columns) do
-        if not column.minLevel or level >= column.minLevel then
-            local label = column.label and getText(column.label)
-            local width = math.max(column.width or DOT_SIZE, label and measure(label) or 0)
-            table.insert(columns, { key = column.key, label = label, x = x, width = width, text = column.text })
-            x = x + width + COLUMN_GAP
-        end
-    end
-    return columns
-end
-
 -- Cuts a text to a width with "...", never inside a UTF-8 character.
 local function fitText(text, width)
     if measure(text) <= width then return text end
@@ -91,6 +71,45 @@ local function fitText(text, width)
         end
     end
     return cut .. ELLIPSIS
+end
+
+-- Column x positions inside the list for the current tab. The first column starts after the
+-- vanilla "In hutch" note, which vanilla writes 20 px after the Info button
+-- (ISDesignationAnimalZoneUI.lua:54-58), and the last one ends before the scroll bar. When
+-- the natural widths do not fit (the "Alert" header fell outside the list in PT-BR, 30/09),
+-- the columns share the room equally and a header is cut with "..." -- the dots are what
+-- matter, and the hover text says the rest.
+local function layoutOf(panel, level, tab)
+    local first = panel.ui.animalbuttons[1]
+    if not first then return nil end
+    local anchor = first:isVisible() and first:getRight() or first:getX()
+    local start = anchor + 20 + measure(getText("IGUI_DesignationZone_InHutch")) + COLUMN_GAP
+    local scrollBar = panel.vscroll and panel.vscroll:getWidth() or 0
+    local room = panel.width - scrollBar - COLUMN_GAP - start
+
+    local columns = {}
+    local natural = 0
+    for _, column in ipairs(tab.columns) do
+        if not column.minLevel or level >= column.minLevel then
+            local label = column.label and getText(column.label)
+            local width = math.max(column.width or DOT_SIZE, label and measure(label) or 0)
+            table.insert(columns, { key = column.key, label = label, width = width, text = column.text })
+            natural = natural + width
+        end
+    end
+    if #columns == 0 then return columns end
+    local gaps = COLUMN_GAP * (#columns - 1)
+    if natural + gaps > room then
+        local shared = math.max(DOT_SIZE, math.floor((room - gaps) / #columns))
+        for _, column in ipairs(columns) do column.width = shared end
+    end
+    local x = start
+    for _, column in ipairs(columns) do
+        column.x = x
+        column.header = column.label and fitText(column.label, column.width)
+        x = x + column.width + COLUMN_GAP
+    end
+    return columns
 end
 
 local function drawDot(panel, column, centerY, color)
@@ -158,9 +177,9 @@ local function drawHeaders(zoneWindow)
     if not columns then return end
     local y = panel:getY() - FONT_HGT_SMALL - 2
     for _, column in ipairs(columns) do
-        if column.label then
-            local labelX = panel:getX() + column.x + (column.width - measure(column.label)) / 2
-            zoneWindow:drawText(column.label, labelX, y, 0.75, 0.75, 0.75, 1, UIFont.Small)
+        if column.header then
+            local labelX = panel:getX() + column.x + (column.width - measure(column.header)) / 2
+            zoneWindow:drawText(column.header, labelX, y, 0.75, 0.75, 0.75, 1, UIFont.Small)
         end
     end
 end
