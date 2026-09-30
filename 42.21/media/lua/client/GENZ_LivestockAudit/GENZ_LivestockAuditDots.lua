@@ -32,6 +32,11 @@ local HEADER_ROW = FONT_HGT_SMALL + 4      -- the row added between the tabs and
 local TAB_PAD = 8
 local TAB_GAP = 4
 local BAR_WIDTH, BAR_HEIGHT = 90, 6
+-- Vanilla opens the Check Zone at 600 px (ISAnimalContextMenu.lua:1070): with a long name, the
+-- Info button and "In hutch" there is no room left for a tab of columns, and the shared layout
+-- squeezes every header to "F..." (30/09). The window is asked wider BEFORE vanilla lays it out,
+-- so the list width, the right-hand buttons and the centered title follow by themselves.
+local WINDOW_WIDTH = 820
 local REFRESH_MS = 1000                    -- the vanilla list itself refreshes once a second
 local DOT_TEXTURE = getTexture("media/ui/circle.png")
 local ELLIPSIS = "..."
@@ -257,6 +262,12 @@ if not AnimalsPanel.genzLivestockAuditPatched then
         originalZoneRender(self)
         drawHeaders(self)
         drawSkillBar(self)
+    end
+
+    -- Wider than vanilla asks, never narrower (see WINDOW_WIDTH).
+    local originalNew = ISDesignationZoneAnimalZoneUI.new
+    function ISDesignationZoneAnimalZoneUI:new(x, y, width, height, player, zone)
+        return originalNew(self, x, y, math.max(width, WINDOW_WIDTH), height, player, zone)
     end
 
     -- The vanilla initialise lays the list right under the "Animals: N" line; the tabs take
