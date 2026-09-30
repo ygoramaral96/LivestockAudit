@@ -65,6 +65,14 @@ local function zoneGroupKey(zone)
     return key
 end
 
+-- The zone group key of the pen at a point, or nil when there is no pen there. The History
+-- (F3) finds the zone from a point on the server; a zone key from the client is never trusted.
+function Server.zoneKeyAt(x, y, z)
+    local zone = DesignationZoneAnimal.getZone(x, y, z)
+    if not zone then return nil end
+    return zoneGroupKey(zone)
+end
+
 -- An animal inside a hutch has no zone of its own; the hutch's zone counts, so going to
 -- the nest is not leaving. false = in no zone at all.
 local function zoneKeyOf(animal)
