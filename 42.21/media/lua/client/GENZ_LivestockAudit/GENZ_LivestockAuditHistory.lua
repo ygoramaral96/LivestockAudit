@@ -1,9 +1,11 @@
 -- GENZ_LivestockAuditHistory -- the "History" button next to Help in the vanilla Check
--- Zone window (card #192, F3): what happened to the asker's claimed animals in this pen.
+-- Zone window (card #192, F3): what happened in this pen to the asker's claimed animals and
+-- to the animals nobody owns (F5, decision D26).
 --
--- The window sends one point of the pen; the server finds the pen itself, keeps only the
--- asker's own entries and cuts them to the asker's Animal Care level
--- (GENZ_LivestockAuditQuery). Nothing about anyone else's animals reaches this client.
+-- The window sends one point of the pen; the server finds the pen itself, checks the asker
+-- is near it, keeps the asker's own entries plus the unowned ones and cuts them to the
+-- asker's Animal Care level (GENZ_LivestockAuditQuery). Nothing about another owner's
+-- animals reaches this client.
 
 require "ISUI/ISPanel"
 require "ISUI/ISButton"

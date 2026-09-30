@@ -12,6 +12,9 @@
 -- reason of a RELEASED ("capsule", "genzball", "captured"...) (F1d).
 -- Every entry carries the zone group the animal was in, which is what the owner's
 -- History (F3) filters by; an entry outside any zone is for staff only (decision D13).
+-- F5 adds RENAMED, and follows animals NOBODY owns while they are in a pen (decisions
+-- D24-D28): hits, handling that moves them, death, rename (announced with no record) and,
+-- from this file's own sweep, critical needs and leaving/entering a pen.
 
 if isClient() and not isServer() then return end
 
@@ -65,11 +68,9 @@ local function zoneGroupKey(zone)
     return key
 end
 
--- The zone group key of the pen at a point, or nil when there is no pen there. The History
--- (F3) finds the zone from a point on the server; a zone key from the client is never trusted.
-function Server.zoneKeyAt(x, y, z)
-    local zone = DesignationZoneAnimal.getZone(x, y, z)
-    if not zone then return nil end
+-- The zone group key of a pen. The History (F3) finds the pen from a point on the server; a
+-- zone key from the client is never trusted.
+function Server.penKey(zone)
     return zoneGroupKey(zone)
 end
 
@@ -86,6 +87,41 @@ local function zoneKeyOf(animal)
     end
     if not zone then return false end
     return zoneGroupKey(zone)
+end
+
+-- ------------------------------------------------------------------ animals nobody owns (F5)
+local UNCLAIMED_ID_KEY = "GENZ_LA_ID"
+local unclaimedStamps = 0
+
+local function isClaimedAnimal(animal)
+    local aid = animal:getModData().GENZ_AID
+    return aid ~= nil and GENZAM.byAnimal[aid] ~= nil
+end
+
+-- The id an animal nobody owns is filed under, or nil (decision D27). One that had an owner
+-- keeps its GENZ_AID, so its history goes on in the same bucket. One that never had an owner
+-- gets an id of this mod, stamped only when it is in a pen, only on the server, never sent.
+-- GENZ_AID itself is NEVER written here: the claim vigia re-attaches exactly the animals that
+-- have none, and stamping a claimed animal that just lost its id in someone's arms would cost
+-- its owner the claim.
+local function unclaimedId(animal, inPen)
+    local modData = animal:getModData()
+    local id = modData.GENZ_AID or modData[UNCLAIMED_ID_KEY]
+    if id or not inPen then return id end
+    unclaimedStamps = unclaimedStamps + 1
+    id = "w" .. tostring(getTimestamp()) .. "_" .. tostring(unclaimedStamps)
+    modData[UNCLAIMED_ID_KEY] = id
+    return id
+end
+
+-- What a claim record would say about the animal, for one that has none.
+local function unclaimedRecord(animal)
+    local breed = animal:getBreed()
+    return {
+        name = animal:getCustomName(),
+        type = animal:getAnimalType(),
+        breed = breed and breed:getName(),
+    }
 end
 
 -- opts = { animal, detail, zone, actor }, all optional.
@@ -133,9 +169,20 @@ local KILL_ACTIONS = { ISKillAnimal = true, ISKillAnimalInInventory = true }
 
 local handlers = {}
 
+-- Claimed after being followed with no owner: that history joins the claim's (D27). The
+-- stamp goes, so the animal is filed under its GENZ_AID from now on.
+local function adoptUnclaimedHistory(data)
+    local modData = data.animal:getModData()
+    local unclaimed = modData[UNCLAIMED_ID_KEY]
+    if not unclaimed then return end
+    modData[UNCLAIMED_ID_KEY] = nil
+    Core.merge(store, unclaimed, data.aid)
+end
+
 -- The claim is the first sighting: it sets the zone baseline, so the entry is filed under
 -- the zone the animal was claimed in.
 function handlers.claimed(data)
+    adoptUnclaimedHistory(data)
     Core.zoneTransitions(Core.bucketFor(store, data.aid).state, zoneKeyOf(data.animal))
     logEvent(data.aid, "CLAIMED", data.record, {
         animal = data.animal,
@@ -230,6 +277,20 @@ function handlers.handled(data)
     })
 end
 
+-- Every rename is news, the owner's too (D24); a refused attempt is logged once a minute
+-- per person, since the button can be pressed again and again.
+function handlers.renamed(data)
+    local actor = actorOf(data.actor)
+    local state = Core.bucketFor(store, data.aid).state
+    if not data.allowed and Core.isRepeat(state, "renamed|" .. tostring(actor.sid or actor.name), os.time()) then
+        return
+    end
+    logEvent(data.aid, "RENAMED", data.record, {
+        animal = data.animal, actor = actor,
+        detail = { from = data.from, to = data.to, allowed = data.allowed },
+    })
+end
+
 -- Vanilla decides "fertilized" versus "pregnant" by the species laying eggs
 -- (ISAnimalUI.lua: getEggsPerDay() > 0); a pregnant mammal is not "fertilized" here.
 local function reproductionOf(animal)
@@ -286,18 +347,73 @@ function handlers.observed(data)
     end
 end
 
+-- What is kept of an animal nobody owns (D25): only inside a pen, and of the handling only
+-- what moves it (it explains a LEFT_ZONE) or kills it -- anyone petting or feeding a
+-- stray is not news.
+local UNCLAIMED_KINDS = { attacked = true, handled = true, died = true, renamed = true }
+
+local function onUnclaimedEvent(kind, data)
+    if not UNCLAIMED_KINDS[kind] or not data.animal then return end
+    if kind == "handled" and not (MOVING_ACTIONS[data.action] or KILL_ACTIONS[data.action]) then return end
+    local zone = zoneKeyOf(data.animal)
+    if not zone then return end
+    local id = unclaimedId(data.animal, true)
+    local state = Core.bucketFor(store, id).state
+    if state.zone == nil then state.zone = zone end
+    data.aid, data.record = id, unclaimedRecord(data.animal)
+    handlers[kind](data)
+end
+
 -- A kind without a handler is ignored: the announcer does not care who listens to what,
 -- and a new kind added there must not break this listener.
 local function onAnimalEvent(kind, data)
-    local handler = handlers[kind]
-    if not handler then return end
+    if not handlers[kind] then return end
     if not store then
         error("store not initialised: OnInitGlobalModData has not run yet")
     end
-    handler(data)
+    if data.record == nil then
+        onUnclaimedEvent(kind, data)
+        return
+    end
+    handlers[kind](data)
 end
 
 GENZ_AnimalEvents.subscribe(onAnimalEvent)
+
+-- The claim sweep visits claimed animals only; one nobody owns is followed here, once a
+-- minute, while it is in a pen or has a bucket from before (D25, D28). One that was never in
+-- a pen is not stamped, not stored, not followed. Needs count only inside a pen.
+local function observeUnclaimed(animal)
+    if animal:isDead() or isClaimedAnimal(animal) then return end
+    local zone = zoneKeyOf(animal)
+    local id = unclaimedId(animal, zone ~= false)
+    if not id then return end
+    if not zone and not store.byAnimal[id] then return end
+    local state = Core.bucketFor(store, id).state
+    local data = { aid = id, record = unclaimedRecord(animal), animal = animal }
+    -- the zone first: on a first sighting it sets the baseline the needs are filed under
+    for _, change in ipairs(Core.zoneTransitions(state, zone)) do
+        logZoneChange(data, state, change)
+    end
+    if zone then
+        local needs = { hunger = animal:getHunger(), thirst = animal:getThirst() }
+        for _, need in ipairs(Core.criticalNeeds(state, needs)) do
+            logEvent(id, "CRITICAL", data.record, { animal = animal, detail = { need = need } })
+        end
+    end
+end
+
+Events.EveryOneMinute.Add(function()
+    local animals = getCell():getAnimals()
+    for i = 0, animals:size() - 1 do
+        -- isolated the way the announcer isolates its listeners: one odd animal must not stop
+        -- the sweep for all the others, and it says so every time
+        local ok, err = pcall(observeUnclaimed, animals:get(i))
+        if not ok then
+            print(LOG_TAG .. "unclaimed sweep failed on one animal: " .. tostring(err))
+        end
+    end
+end)
 
 local function isClaimed(aid)
     return GENZAM.byAnimal[aid] ~= nil

@@ -1,8 +1,9 @@
 -- GENZ_LivestockAuditQuery -- answers the staff list (F2) and the owner History (F3).
 --
 -- Every answer is cut here, on the server: a client never receives the store, only the
--- slice its role (staff) or its claims and Animal Care level (owner) allow. A request that
--- fails the check gets no answer and leaves one line in the server console.
+-- slice its role (staff) or its claims, its distance to the pen and its Animal Care level
+-- (History) allow. A request that fails a check gets no answer or an empty one, and leaves
+-- one line in the server console.
 
 if isClient() and not isServer() then return end
 
@@ -50,19 +51,25 @@ local function answerList(player, args)
     })
 end
 
--- args = { x, y, z } of the pen whose Check Zone window asked. Only the asker's own entries
--- are returned, so the point needs no proximity check: there is nothing of anyone else to see.
+local function penRect(zone)
+    return { x = zone:getX(), y = zone:getY(), w = zone:getW(), h = zone:getH() }
+end
+
+-- args = { x, y, z } of the pen whose Check Zone window asked. The answer holds the asker's
+-- own entries plus those of animals nobody owned (D26), so the pen must be one the asker is
+-- near: without that, a forged command could scan the map for pens -- that is, for bases.
 local function answerHistory(player, args)
     local x, y, z = tonumber(args.x), tonumber(args.y), tonumber(args.z)
-    local zoneKey = x and y and z and Server.zoneKeyAt(x, y, z)
-    local ownerSid = GENZAM.robustSid(player)
+    local zone = x and y and z and DesignationZoneAnimal.getZone(x, y, z)
+    local where = tostring(x) .. "," .. tostring(y) .. "," .. tostring(z)
     local items = {}
-    if zoneKey and ownerSid then
-        local level = player:getPerkLevel(Perks.Husbandry)
-        items = Core.toWire(Core.history(Server.store(), ownerSid, zoneKey, level))
+    if not zone then
+        print(LOG_TAG .. "history for " .. player:getUsername() .. " answered empty: no pen at " .. where)
+    elseif not Core.isWithinReach(penRect(zone), player:getX(), player:getY()) then
+        print(LOG_TAG .. "history for " .. player:getUsername() .. " answered empty: too far from the pen at " .. where)
     else
-        print(LOG_TAG .. "history for " .. player:getUsername() .. " answered empty: "
-              .. (zoneKey and "no SteamID matched" or "no pen at " .. tostring(x) .. "," .. tostring(y) .. "," .. tostring(z)))
+        local level = player:getPerkLevel(Perks.Husbandry)
+        items = Core.toWire(Core.history(Server.store(), GENZAM.robustSid(player), Server.penKey(zone), level))
     end
     sendServerCommand(player, NET, "historyResult", { items = items, now = os.time() })
 end

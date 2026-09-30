@@ -9,6 +9,9 @@
 --   store.byOwner[sid]  = { name = <newest owner name>, animals = { [aid] = true } }
 -- One bucket per ANIMAL (Ygor, 29/09): a noisy animal cannot push another animal's
 -- history out, and the bucket outlives the claim record, which is deleted on death.
+-- A bucket is keyed by the animal's GENZ_AID, or -- for an animal in a pen that never had an
+-- owner -- by the id this mod stamps on it (F5, decision D27). Entries of an animal nobody
+-- owned at the time carry no `owner` and are in no byOwner index.
 
 GENZ_LivestockAuditCore = {}
 local Core = GENZ_LivestockAuditCore
@@ -74,6 +77,29 @@ function Core.append(store, aid, entry)
         store.byOwner[entry.owner] = index
     end
     return bucket
+end
+
+local function isOlder(a, b)
+    if a.ts ~= b.ts then return a.ts < b.ts end
+    return (a.t or 0) < (b.t or 0)
+end
+
+-- An animal followed while nobody owned it, then claimed: its entries move to the claim's
+-- bucket so its history reads as one (decision D27). Oldest first, capped like any bucket;
+-- the claim's bucket keeps its own state when it has one (the claim just set its baseline).
+function Core.merge(store, fromId, toId)
+    local from = store.byAnimal[fromId]
+    if not from or fromId == toId then return end
+    local to = Core.bucketFor(store, toId)
+    local items = {}
+    for _, entry in ipairs(from.items) do table.insert(items, entry) end
+    for _, entry in ipairs(to.items) do table.insert(items, entry) end
+    table.sort(items, isOlder)
+    while #items > Core.MAX_EVENTS_PER_ANIMAL do table.remove(items, 1) end
+    to.items = items
+    if from.last and (not to.last or from.last > to.last) then to.last = from.last end
+    if isEmpty(to.state) then to.state = from.state end
+    store.byAnimal[fromId] = nil
 end
 
 -- isClaimed(aid) answers whether the animal still has an owner; the claim store lives in
@@ -243,10 +269,16 @@ end
 
 Core.PAGE_SIZE = 50
 Core.HISTORY_LIMIT = 120                    -- decision D16
+-- The History shows animals nobody owns to whoever opens the pen (D26), so the server answers
+-- only an asker standing this many tiles or fewer from the pen's edge. Provisional: the Check
+-- Zone opens from the zone's own context menu, so the asker is looking at it.
+Core.PEN_REACH = 50
+-- Owner filter value for "entries of animals nobody owned at the time" (staff list, D26).
+Core.UNOWNED = "unowned"
 
 -- Every kind the audit writes, in the order the staff filter lists them.
 Core.KINDS = {
-    "CLAIMED", "RELEASED", "DIED", "ATTACKED", "HANDLED", "LEFT_ZONE", "ENTERED_ZONE",
+    "CLAIMED", "RELEASED", "DIED", "ATTACKED", "HANDLED", "RENAMED", "LEFT_ZONE", "ENTERED_ZONE",
     "PREGNANT", "FERTILIZED", "GAVE_BIRTH", "PREGNANCY_ENDED", "GREW_UP", "CRITICAL",
     "PERMISSION", "REATTACHED", "DOWNED",
 }
@@ -259,14 +291,20 @@ Core.MIN_LEVEL = { PREGNANT = 3, FERTILIZED = 3, PREGNANCY_ENDED = 3 }
 -- season: ISAnimalUI.lua:102, :161). Provisional until getAgeText is measured per level.
 Core.OLD_AGE_LEVEL = 5
 
--- filter = { owner = sid, aid = aid, kind = kind, zone = zone key }, each optional.
--- Returns { aid, entry } rows, newest first.
+local function ownerMatches(filter, entry)
+    if not filter.owner then return true end
+    if filter.owner == Core.UNOWNED then return entry.owner == nil end
+    return entry.owner == filter.owner
+end
+
+-- filter = { owner = sid or Core.UNOWNED, aid = aid, kind = kind, zone = zone key }, each
+-- optional. Returns { aid, entry } rows, newest first.
 function Core.collect(store, filter)
     local rows = {}
     for aid, bucket in pairs(store.byAnimal) do
         if not filter.aid or filter.aid == aid then
             for _, entry in ipairs(bucket.items) do
-                if (not filter.owner or entry.owner == filter.owner)
+                if ownerMatches(filter, entry)
                     and (not filter.kind or entry.k == filter.kind)
                     and (not filter.zone or entry.zone == filter.zone) then
                     table.insert(rows, { aid = aid, entry = entry })
@@ -330,18 +368,29 @@ function Core.visibleTo(entry, level)
     return entry
 end
 
--- The owner's History of one zone group: only their entries (the owner at the time of each
--- entry), only this zone, cut to their level, newest first, at most HISTORY_LIMIT.
+-- The History of one zone group for one asker: their own entries (the owner at the time of
+-- each entry) plus those of animals nobody owned at the time (D26), only this zone, cut to
+-- their level, newest first, at most HISTORY_LIMIT. ownerSid may be nil (no SteamID
+-- matched): the asker then sees only the unowned ones.
 function Core.history(store, ownerSid, zoneKey, level)
     local visible = {}
-    for _, row in ipairs(Core.collect(store, { owner = ownerSid, zone = zoneKey })) do
-        local entry = Core.visibleTo(row.entry, level)
+    for _, row in ipairs(Core.collect(store, { zone = zoneKey })) do
+        local mine = ownerSid ~= nil and row.entry.owner == ownerSid
+        local entry = (mine or row.entry.owner == nil) and Core.visibleTo(row.entry, level)
         if entry then
             table.insert(visible, { aid = row.aid, entry = entry })
             if #visible >= Core.HISTORY_LIMIT then break end
         end
     end
     return visible
+end
+
+-- rect = { x, y, w, h } of a pen; true when the point is within PEN_REACH tiles of its edge
+-- (or inside it).
+function Core.isWithinReach(rect, px, py)
+    local dx = math.max(rect.x - px, 0, px - (rect.x + rect.w))
+    local dy = math.max(rect.y - py, 0, py - (rect.y + rect.h))
+    return math.max(dx, dy) <= Core.PEN_REACH
 end
 
 -- Rows as they travel to the client: the entry fields plus its aid, one flat table each.
@@ -425,6 +474,10 @@ function Core.describe(entry)
     if kind == "CRITICAL" then return KEY .. "Critical_" .. tostring(d.need), {} end
     if kind == "GREW_UP" then
         return KEY .. "GrewUp", { { key = "IGUI_AnimalType_" .. tostring(d.from) }, { key = "IGUI_AnimalType_" .. tostring(d.to) } }
+    end
+    if kind == "RENAMED" then
+        if not d.allowed then return KEY .. "RenameBlocked", { actor, tostring(d.to) } end
+        return KEY .. "Renamed", { actor, Core.animalLabel({ name = d.from, type = entry.type }), tostring(d.to) }
     end
     if kind == "PERMISSION" then return describePermission(entry, d) end
     if kind == "REATTACHED" then return KEY .. "Reattached", { tostring(d.via) } end

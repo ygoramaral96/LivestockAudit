@@ -128,6 +128,7 @@ end
 function Window:fillOwners(owners)
     self.ownerCombo:clear()
     self.ownerCombo:addOptionWithData(getText("UI_GENZ_LA_AllOwners"), "")
+    self.ownerCombo:addOptionWithData(getText("UI_GENZ_LA_UnownedFilter"), Core.UNOWNED)
     for _, owner in ipairs(owners) do
         self.ownerCombo:addOptionWithData(getText("UI_GENZ_LA_OwnerCount", owner.name, tostring(owner.count)), owner.sid)
     end
@@ -162,7 +163,8 @@ function Window.drawRow(list, y, row, alt)
     list:drawText(Text.when(item.ts), PAD, textY, 0.7, 0.7, 0.7, 1, UIFont.Small)
     list:drawText(tostring(item.x) .. "," .. tostring(item.y), COL_WHERE, textY, 0.7, 0.7, 0.7, 1, UIFont.Small)
     list:drawText(Text.animal(item), COL_ANIMAL, textY, 1, 1, 1, 1, UIFont.Small)
-    list:drawText(getText("UI_GENZ_LA_OwnerOf", tostring(item.ownerName)), COL_OWNER, textY, 0.8, 0.8, 0.8, 1, UIFont.Small)
+    local owner = item.owner and getText("UI_GENZ_LA_OwnerOf", tostring(item.ownerName)) or getText("UI_GENZ_LA_Unowned")
+    list:drawText(owner, COL_OWNER, textY, 0.8, 0.8, 0.8, 1, UIFont.Small)
     list:drawText(row.text, COL_EVENT, textY, 1, 1, 1, 1, UIFont.Small)
     return y + list.itemheight
 end
