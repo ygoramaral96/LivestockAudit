@@ -244,10 +244,60 @@ local function weightCell(animal, level)
     return { text = getText("IGUI_AnimalWeightG", round(weight * 1000, 2)) }
 end
 
--- Every cell the level allows, keyed by column; the tab picks the ones it shows.
+-- The list icon: the animal's inventory icon when the engine resolves it. The companion
+-- mods (CompanionDogs, CompanionCat) register their textures by PATH only, so the bare
+-- invIcon name the engine returns for them ("CDDogPaw_64") never resolves; their own kennel
+-- UI draws "media/textures/CDPortrait_<breed key>.png" with the paw by path as fallback
+-- (CompanionDogs_KennelUI.lua:99-108), and so does the list. Nothing is copied: the textures
+-- are read from the loaded mods, and without them the row just has no icon.
+local COMPANION_PORTRAIT = "media/textures/CDPortrait_%s.png"
+local COMPANION_ICON = "media/textures/%s.png"
+local TYPE_SUFFIXES = { "female", "male", "pup" }   -- "female" before "male": it ends with it
+
+-- "huskyfemale" -> "husky"; the five cat coats share "cat" (CompanionCat_Breed.lua:47).
+local function typePrefix(animalType)
+    local t = tostring(animalType)
+    for _, suffix in ipairs(TYPE_SUFFIXES) do
+        if #t > #suffix and string.sub(t, -#suffix) == suffix then
+            return string.sub(t, 1, #t - #suffix)
+        end
+    end
+    return nil
+end
+
+-- The keys of CompanionDogs.BREEDS with this type prefix, sorted so the answer is stable.
+local function companionKeys(prefix)
+    local keys = {}
+    local breeds = CompanionDogs and CompanionDogs.BREEDS
+    if not breeds or not prefix then return keys end
+    for key, def in pairs(breeds) do
+        if type(def) == "table" and def.typePrefix == prefix then table.insert(keys, key) end
+    end
+    table.sort(keys)
+    return keys
+end
+
+function Readings.iconOf(animal)
+    local texture = animal:getInventoryIconTexture()
+    if texture then return texture end
+    local name = animal:getInventoryIconTextureName()
+    if not name or name == "" then return nil end
+    local prefix = typePrefix(animal:getAnimalType())
+    local candidates = { prefix }
+    for _, key in ipairs(companionKeys(prefix)) do table.insert(candidates, key) end
+    for _, key in ipairs(candidates) do
+        texture = getTexture(string.format(COMPANION_PORTRAIT, key))
+        if texture then return texture end
+    end
+    return getTexture(string.format(COMPANION_ICON, name))
+end
+
+-- Every cell the level allows, keyed by column, plus the row's icon; the tab picks the
+-- columns it shows.
 function Readings.cellsOf(animal, level)
     local appearance = animal:getAppearanceText(false)
     local cells = {
+        icon = Readings.iconOf(animal),
         claim = claimCell(animal),
         hunger = readStage("hunger", appearance),
         thirst = readStage("thirst", appearance),

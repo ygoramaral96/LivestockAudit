@@ -121,8 +121,8 @@ local function drawTextCell(panel, column, centerY, text)
     panel:drawText(fitText(text, column.width), column.x, centerY - FONT_HGT_SMALL / 2, 0.85, 0.85, 0.85, 1, UIFont.Small)
 end
 
-local function drawIcon(panel, animal, centerY)
-    local texture = animal:getInventoryIconTexture()
+-- The icon comes with the cells (Readings.iconOf), so it is looked up once a second, not per frame.
+local function drawIcon(panel, texture, centerY)
     if texture then
         panel:drawTextureScaled(texture, ICON_X, centerY - ICON_SIZE / 2, ICON_SIZE, ICON_SIZE, 1, 1, 1, 1)
     end
@@ -141,8 +141,8 @@ local function drawRows(panel)
     for index, button in ipairs(panel.ui.animalbuttons) do
         if instanceof(button.animal, "IsoAnimal") then
             local centerY = (index - 1) * rowHeight + rowHeight / 2
-            drawIcon(panel, button.animal, centerY)
             local cells = cachedCells(button.animal, level)
+            drawIcon(panel, cells.icon, centerY)
             for _, column in ipairs(columns) do
                 local cell = cells[column.key]
                 if cell then
