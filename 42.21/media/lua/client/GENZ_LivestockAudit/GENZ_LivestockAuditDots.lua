@@ -36,7 +36,10 @@ local BAR_WIDTH, BAR_HEIGHT = 90, 6
 -- Info button and "In hutch" there is no room left for a tab of columns, and the shared layout
 -- squeezes every header to "F..." (30/09). The window is asked wider BEFORE vanilla lays it out,
 -- so the list width, the right-hand buttons and the centered title follow by themselves.
-local WINDOW_WIDTH = 820
+-- Not wider than the widest tab needs: the profile tab (claim dot + Type + Age + Weight) takes
+-- 316 px after the Info button and "In hutch", which the longest vanilla breed name fits in
+-- 762 px; 820 was "too big" in the next test (30/09), 780 keeps ~19 px of slack.
+local WINDOW_WIDTH = 780
 local REFRESH_MS = 1000                    -- the vanilla list itself refreshes once a second
 local DOT_TEXTURE = getTexture("media/ui/circle.png")
 local ELLIPSIS = "..."
@@ -193,13 +196,16 @@ end
 local function drawSkillBar(zoneWindow)
     local level, fraction, name = Readings.skillProgress(zoneWindow.player)
     local text = name .. " " .. tostring(level)
-    local x = zoneWindow.width - 10 - BAR_WIDTH
+    -- As wide as the text when it is longer: "Cuidados com Animais 10" centered on a 90 px bar
+    -- stuck out past the window's right edge (30/09).
+    local width = math.max(BAR_WIDTH, measure(text))
+    local x = zoneWindow.width - 10 - width
     local y = 20   -- vanilla's title line (ISDesignationAnimalZoneUI.lua:279)
-    zoneWindow:drawText(text, x + (BAR_WIDTH - measure(text)) / 2, y, 0.75, 0.75, 0.75, 1, UIFont.Small)
+    zoneWindow:drawText(text, x + (width - measure(text)) / 2, y, 0.75, 0.75, 0.75, 1, UIFont.Small)
     local barY = y + FONT_HGT_SMALL + 2
-    zoneWindow:drawRect(x, barY, BAR_WIDTH, BAR_HEIGHT, 0.8, 0.15, 0.15, 0.15)
-    zoneWindow:drawRect(x, barY, BAR_WIDTH * fraction, BAR_HEIGHT, 1, 0.35, 0.75, 0.35)
-    zoneWindow:drawRectBorder(x, barY, BAR_WIDTH, BAR_HEIGHT, 0.6, 1, 1, 1)
+    zoneWindow:drawRect(x, barY, width, BAR_HEIGHT, 0.8, 0.15, 0.15, 0.15)
+    zoneWindow:drawRect(x, barY, width * fraction, BAR_HEIGHT, 1, 0.35, 0.75, 0.35)
+    zoneWindow:drawRectBorder(x, barY, width, BAR_HEIGHT, 0.6, 1, 1, 1)
 end
 
 -- ------------------------------------------------------------------ tabs
