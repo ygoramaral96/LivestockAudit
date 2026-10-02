@@ -236,6 +236,13 @@ function Window:fill(args)
     refill(self.typeCombo, "UI_GENZ_LA_AllTypes", args.types, function(animalType)
         return getText("IGUI_AnimalType_" .. animalType), animalType
     end, self.filter.type)
+    -- the owner (or species) filtered on is gone from the lists -- staff released their last
+    -- animal: the combo fell back to "all", so the filter follows and the page is asked again
+    local owner, animalType = comboValue(self.ownerCombo), comboValue(self.typeCombo)
+    if owner ~= self.filter.owner or animalType ~= self.filter.type then
+        self.filter.owner, self.filter.type = owner, animalType
+        self:request(1)
+    end
     self.items = args.items
     self.list:clear()
     for _, row in ipairs(args.items) do self.list:addItem(Text.animal(row), row) end
