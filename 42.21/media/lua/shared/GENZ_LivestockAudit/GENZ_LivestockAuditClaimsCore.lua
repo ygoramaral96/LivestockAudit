@@ -80,8 +80,8 @@ function Claims.rows(records, owners, opts)
     return rows
 end
 
--- Not seen for at least `days`; a claim with no sighting counts. The same test the server
--- repeats before releasing a ghost (GENZ_AnimalManagerServer, staffReleaseUnseen).
+-- Not seen for at least `days`; a claim with no sighting counts. The server repeats it
+-- before releasing a ghost (GENZ_AnimalManagerServer, isStillGhost).
 function Claims.isUnseen(row, days, now)
     return (row.seenAt or 0) <= now - days * Claims.DAY_SECONDS
 end

@@ -191,6 +191,8 @@
     "UI_GENZ_LA_Refused_capability": "Recusado: seu cargo não pode mexer em claim de animal.",
     "UI_GENZ_LA_Refused_reason": "Recusado: falta o motivo.",
     "UI_GENZ_LA_Refused_noclaim": "Esse claim não existe mais.",
+    "UI_GENZ_LA_Refused_changed": "O animal mudou de dono desde que a lista abriu; nada foi feito. Atualize e confira.",
+    "UI_GENZ_LA_Refused_dog": "Cão não se transfere por aqui ainda: o CompanionDogs guarda o dono dele.",
     "UI_GENZ_LA_Refused_offline": "O novo dono não está online.",
     "UI_GENZ_LA_Refused_sameowner": "Esse jogador já é o dono.",
     "UI_GENZ_LA_Refused_nothingpublic": "Esse animal não tinha nada público.",

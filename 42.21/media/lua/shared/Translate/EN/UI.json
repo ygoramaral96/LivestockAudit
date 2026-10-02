@@ -191,6 +191,8 @@
     "UI_GENZ_LA_Refused_capability": "Refused: your role cannot change animal claims.",
     "UI_GENZ_LA_Refused_reason": "Refused: the reason is missing.",
     "UI_GENZ_LA_Refused_noclaim": "That claim no longer exists.",
+    "UI_GENZ_LA_Refused_changed": "The animal changed hands since the list opened; nothing was done. Refresh and check.",
+    "UI_GENZ_LA_Refused_dog": "Dogs cannot be transferred here yet: CompanionDogs keeps their owner.",
     "UI_GENZ_LA_Refused_offline": "The new owner is not online.",
     "UI_GENZ_LA_Refused_sameowner": "That player already owns it.",
     "UI_GENZ_LA_Refused_nothingpublic": "That animal had nothing public.",

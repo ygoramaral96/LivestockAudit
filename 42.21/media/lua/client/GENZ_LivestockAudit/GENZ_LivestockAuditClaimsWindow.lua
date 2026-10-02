@@ -201,6 +201,14 @@ function Window:onFilterChanged()
     self:request(1)
 end
 
+-- Back to the first option, then to `keep` if it is still there. ISComboBox:clear() keeps the
+-- selected INDEX and selectData() keeps it when the value is gone: without the reset the combo
+-- would quietly point at whoever took that place in the new list.
+local function reselect(combo, keep)
+    combo.selected = 1
+    combo:selectData(keep or "")
+end
+
 -- The owner and species lists come with every page (claims come and go); the choice survives.
 local function refill(combo, firstKey, entries, optionOf, keep)
     combo:clear()
@@ -209,7 +217,7 @@ local function refill(combo, firstKey, entries, optionOf, keep)
         local text, data = optionOf(entry)
         combo:addOptionWithData(text, data)
     end
-    combo:selectData(keep or "")
+    reselect(combo, keep)
 end
 
 function Window:selectedRow()
@@ -320,14 +328,19 @@ function Window:summaryLine()
     }, "   |   ")
 end
 
-function Window:unseenAids()
-    local aids = {}
+-- The ghosts of the page on screen, as { aid, owner } (the server checks both again). One
+-- loaded now is not a ghost, whatever its last sighting says: the sweep refreshes seenAt
+-- only some records a minute.
+function Window:unseenClaims()
+    local claims = {}
     local days = self.filter.unseenDays
-    if not days then return aids end
+    if not days then return claims end
     for _, row in ipairs(self.items) do
-        if Claims.isUnseen(row, days, self.now) then table.insert(aids, row.aid) end
+        if not row.loaded and Claims.isUnseen(row, days, self.now) then
+            table.insert(claims, { aid = row.aid, owner = row.owner })
+        end
     end
-    return aids
+    return claims
 end
 
 function Window:updateButtons()
@@ -337,8 +350,9 @@ function Window:updateButtons()
     self.teleportButton:setEnable(row ~= nil and hasCapability(Capability.TeleportToCoordinates))
     self.clearPublicButton:setEnable(canAct and row ~= nil and #row.publicOn > 0)
     self.releaseButton:setEnable(canAct and row ~= nil)
-    self.transferButton:setEnable(canAct and row ~= nil and comboValue(self.transferCombo) ~= nil)
-    self.unseenButton:setEnable(canAct and #self:unseenAids() > 0)
+    -- a dog is not transferred (GENZ_AnimalManagerServer, staffTransfer)
+    self.transferButton:setEnable(canAct and row ~= nil and row.kind ~= "cao" and comboValue(self.transferCombo) ~= nil)
+    self.unseenButton:setEnable(canAct and #self:unseenClaims() > 0)
 end
 
 function Window:prerender()
@@ -388,36 +402,40 @@ end
 
 function Window:act(command, args)
     self.actionStatus = getText("UI_GENZ_LA_Working")
-    self.lastAction = { command = command, args = args }
     sendClientCommand(CLAIMS_NET, command, args)
 end
 
+-- Every action carries the owner the window showed: the server refuses ("changed") when the
+-- animal has changed hands since, instead of acting on someone else's claim.
 function Window:release(row)
     self:askReason(getText("UI_GENZ_LA_AskRelease", Text.animal(row), row.ownerName), function(reason)
-        self:act("adminUnclaim", { aid = row.aid, reason = reason })
+        self:act("adminUnclaim", { aid = row.aid, owner = row.owner, reason = reason })
     end)
 end
 
 function Window:clearPublic(row)
     self:askReason(getText("UI_GENZ_LA_AskClearPublic", tostring(#row.publicOn), Text.animal(row)), function(reason)
-        self:act("adminClearPublic", { aid = row.aid, reason = reason })
+        self:act("adminClearPublic", { aid = row.aid, owner = row.owner, reason = reason })
     end)
 end
 
+-- The request is kept for the override box: if the answer is "no room", YES resends THIS
+-- transfer, whatever was sent in between.
 function Window:transfer(row)
     local toSid = comboValue(self.transferCombo)
     local toName = self.onlineNames[toSid] or toSid
     self:askReason(getText("UI_GENZ_LA_AskTransfer", Text.animal(row), row.ownerName, toName), function(reason)
-        self:act("adminTransfer", { aid = row.aid, toSid = toSid, reason = reason })
+        self.transferRequest = { aid = row.aid, owner = row.owner, toSid = toSid, reason = reason }
+        self:act("adminTransfer", self.transferRequest)
     end)
 end
 
 -- The question names how many go: this is the confirmation of the batch.
 function Window:releaseUnseen()
     local days = self.filter.unseenDays
-    local aids = self:unseenAids()
-    self:askReason(getText("UI_GENZ_LA_AskUnseen", tostring(#aids), tostring(days)), function(reason)
-        self:act("adminUnclaimMany", { aids = aids, unseenDays = days, reason = reason })
+    local claims = self:unseenClaims()
+    self:askReason(getText("UI_GENZ_LA_AskUnseen", tostring(#claims), tostring(days)), function(reason)
+        self:act("adminUnclaimMany", { claims = claims, unseenDays = days, reason = reason })
     end)
 end
 
@@ -426,15 +444,15 @@ function Window:askOverride(result)
     local box = ISModalDialog:new(0, 0, 440, 160,
         getText("UI_GENZ_LA_AskOverride", tostring(result.owned), tostring(result.budget),
             getText("UI_GENZ_LA_ClaimKind_" .. tostring(result.kind))),
-        true, self, Window.onOverride, getPlayer():getPlayerNum(), self.lastAction)
+        true, self, Window.onOverride, getPlayer():getPlayerNum(), self.transferRequest)
     box:initialise()
     box:addToUIManager()
 end
 
-function Window:onOverride(button, last)
-    if button.internal ~= "YES" or not last then return end
-    last.args.override = true
-    self:act(last.command, last.args)
+function Window:onOverride(button, request)
+    if button.internal ~= "YES" or not request then return end
+    request.override = true
+    self:act("adminTransfer", request)
 end
 
 function Window:onActionResult(result)
@@ -462,7 +480,8 @@ function Window:fillOnline(list)
         self.onlineNames[online.sid] = online.name
         self.transferCombo:addOptionWithData(online.name, online.sid)
     end
-    self.transferCombo:selectData(keep or "")
+    -- a target who left the server leaves the choice empty, never on the next name in the list
+    reselect(self.transferCombo, keep)
 end
 
 function Window:onClick(button)
