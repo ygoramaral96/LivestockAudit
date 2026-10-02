@@ -180,23 +180,31 @@ local function adoptUnclaimedHistory(data)
 end
 
 -- The claim is the first sighting: it sets the zone baseline, so the entry is filed under
--- the zone the animal was claimed in.
+-- the zone the animal was claimed in. A staff transfer (card #210) may come with no animal
+-- (it can be far away): no baseline then, and the entry goes where the claim store last saw it.
 function handlers.claimed(data)
-    adoptUnclaimedHistory(data)
-    Core.zoneTransitions(Core.bucketFor(store, data.aid).state, zoneKeyOf(data.animal))
+    if data.animal then
+        adoptUnclaimedHistory(data)
+        Core.zoneTransitions(Core.bucketFor(store, data.aid).state, zoneKeyOf(data.animal))
+    end
     logEvent(data.aid, "CLAIMED", data.record, {
         animal = data.animal,
-        detail = { kind = data.record.kind, origin = data.origin or "unspecified" },
+        actor = data.actor and actorOf(data.actor),
+        detail = { kind = data.record.kind, origin = data.origin or "unspecified", note = data.note },
     })
 end
 
 -- The owner giving or taking access: who can now touch the animal is part of its story.
+-- Staff clearing the public flags (card #210) comes here too, with the flags that were on
+-- and the staff reason.
 function handlers.permission(data)
+    local cleared = data.flags and table.concat(data.flags, ",") or nil
     logEvent(data.aid, "PERMISSION", data.record, {
         actor = actorOf(data.actor),
         detail = {
             change = data.change, flag = data.flag, value = data.value,
             target = data.target, targetName = data.targetName,
+            flags = cleared, note = data.note,
         },
     })
 end
@@ -212,8 +220,12 @@ function handlers.downed(data)
     })
 end
 
+-- A staff release or transfer (card #210) names the staff member and their reason.
 function handlers.released(data)
-    logEvent(data.aid, "RELEASED", data.record, { detail = { reason = data.reason or "unspecified" } })
+    logEvent(data.aid, "RELEASED", data.record, {
+        actor = data.actor and actorOf(data.actor),
+        detail = { reason = data.reason or "unspecified", note = data.note },
+    })
 end
 
 -- The announcer reports each death once: the death event and the sweep both unclaim, so

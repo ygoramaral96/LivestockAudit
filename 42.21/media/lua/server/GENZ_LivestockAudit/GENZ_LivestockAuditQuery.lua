@@ -1,4 +1,5 @@
--- GENZ_LivestockAuditQuery -- answers the staff list (F2) and the owner History (F3).
+-- GENZ_LivestockAuditQuery -- answers the staff list (F2), the owner History (F3) and the
+-- staff "Animal Claims" list (card #210).
 --
 -- Every answer is cut here, on the server: a client never receives the store, only the
 -- slice its role (staff) or its claims, its distance to the pen and its Animal Care level
@@ -8,9 +9,11 @@
 if isClient() and not isServer() then return end
 
 require "GENZ_LivestockAudit/GENZ_LivestockAuditCore"
+require "GENZ_LivestockAudit/GENZ_LivestockAuditClaimsCore"
 require "GENZ_LivestockAudit/GENZ_LivestockAuditServer"
 
 local Core = GENZ_LivestockAuditCore
+local Claims = GENZ_LivestockAuditClaimsCore
 local Server = GENZ_LivestockAuditServer
 
 local NET = "GENZ_LivestockAudit"
@@ -22,9 +25,13 @@ local lastRequestAt = {}
 
 -- The same capability that enables vanilla's "See tickets" in the admin panel: whoever
 -- answers support is whoever investigates "my animal is gone" (decision D18).
-local function isSupportStaff(player)
+local function hasCapability(player, capability)
     local role = player:getRole()
-    return role ~= nil and role:hasCapability(Capability.AnswerTickets)
+    return role ~= nil and role:hasCapability(capability)
+end
+
+local function isSupportStaff(player)
+    return hasCapability(player, Capability.AnswerTickets)
 end
 
 local function isTooSoon(player)
@@ -74,7 +81,43 @@ local function answerHistory(player, args)
     sendServerCommand(player, NET, "historyResult", { items = items, now = os.time() })
 end
 
-local handlers = { list = answerList, history = answerHistory }
+-- One owner's pots summed (farm + dog), for the summary's slot line.
+local function slotsOf(sid)
+    return {
+        owned = GENZAM.ownedCount(sid),
+        budget = GENZAM.budget(sid, "fazenda") + GENZAM.budget(sid, "cao"),
+        extra = GENZAM.extra(sid, "fazenda") + GENZAM.extra(sid, "cao"),
+    }
+end
+
+-- args = { filter = {...}, page = n } (card #210). The staff "Animal Claims" window: every
+-- claim of the claim store -- read here, never written -- cut to one page. Whether the
+-- animal is loaded now and how its claim began (from this mod's store) are added to that
+-- page only: the first walks the loaded animals, the second a bucket.
+local function answerClaims(player, args)
+    if not isSupportStaff(player) then
+        print(LOG_TAG .. "refused the claims list to " .. player:getUsername() .. " (no AnswerTickets)")
+        return
+    end
+    local now = getTimestamp()
+    local opts = { now = now, timeoutHours = GENZAM.claimTimeoutHours(), flags = GENZAM.PERM_FLAGS }
+    local all = Claims.rows(GENZAM.byAnimal, GENZAM.byOwner, opts)
+    local rows = Claims.filter(all, Claims.readFilter(args.filter), now)
+    local slice, page, pages = Core.page(rows, tonumber(args.page) or 1, Claims.PAGE_SIZE)
+    local store = Server.store()
+    for _, row in ipairs(slice) do
+        row.loaded = GENZAM.findAnimal(row.aid) ~= nil
+        row.origin = Claims.originOf(store.byAnimal[row.aid])
+    end
+    sendServerCommand(player, NET, "claimsResult", {
+        items = slice, page = page, pages = pages, total = #rows,
+        summary = Claims.summary(all, now, slotsOf),
+        owners = Claims.owners(all), types = Claims.types(all),
+        now = now, timeoutHours = opts.timeoutHours,
+    })
+end
+
+local handlers = { list = answerList, history = answerHistory, claims = answerClaims }
 
 Events.OnClientCommand.Add(function(module, command, player, args)
     if module ~= NET then return end

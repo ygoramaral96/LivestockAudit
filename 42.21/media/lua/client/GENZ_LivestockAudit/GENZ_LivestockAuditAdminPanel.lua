@@ -40,7 +40,9 @@ end
 GENZ_LivestockAuditAdminWindow = ISPanel:derive("GENZ_LivestockAuditAdminWindow")
 local Window = GENZ_LivestockAuditAdminWindow
 
-function Window:new(width, height)
+-- animal (optional, card #210) = { aid, label }: opened from the "Animal Claims" window, the
+-- list shows that one animal's events.
+function Window:new(width, height, animal)
     local x = getCore():getScreenWidth() / 2 - width / 2
     local y = getCore():getScreenHeight() / 2 - height / 2
     local o = ISPanel:new(x, y, width, height)
@@ -51,6 +53,7 @@ function Window:new(width, height)
     o.moveWithMouse = true
     o.page, o.pages, o.total = 1, 1, 0
     o.filterOwner, o.filterKind = nil, nil
+    o.animal = animal
     o.isLoading = true
     Window.instance = o
     return o
@@ -115,7 +118,9 @@ end
 
 function Window:request(page)
     self.isLoading = true
-    sendClientCommand(NET, "list", { owner = self.filterOwner, kind = self.filterKind, page = page })
+    sendClientCommand(NET, "list", {
+        owner = self.filterOwner, kind = self.filterKind, aid = self.animal and self.animal.aid, page = page,
+    })
 end
 
 function Window:onFilterChanged()
@@ -171,7 +176,7 @@ end
 
 function Window:prerender()
     ISPanel.prerender(self)
-    local title = getText("UI_GENZ_LA_AdminTitle")
+    local title = self.animal and getText("UI_GENZ_LA_AdminTitleAnimal", self.animal.label) or getText("UI_GENZ_LA_AdminTitle")
     self:drawText(title, self.width / 2 - getTextManager():MeasureStringX(UIFont.Medium, title) / 2, PAD, 1, 1, 1, 1, UIFont.Medium)
     local status
     if self.isLoading then
@@ -186,7 +191,8 @@ function Window:prerender()
     self.teleportButton:setVisible(self:selectedItem() ~= nil and hasCapability(Capability.TeleportToCoordinates))
 end
 
--- Same command the vanilla PVP Log Tool uses to go to where a kill happened.
+-- Same command the vanilla PVP Log Tool uses to go to where a kill happened. Public: the
+-- "Animal Claims" window (card #210) goes to an animal's last position with it.
 local function teleportTo(item)
     local position = tostring(item.x) .. "," .. tostring(item.y) .. "," .. tostring(item.z)
     if isClient() then
@@ -195,6 +201,7 @@ local function teleportTo(item)
         getPlayer():teleportTo(item.x, item.y, item.z)
     end
 end
+Window.teleportTo = teleportTo
 
 function Window:onClick(button)
     if button.internal == "CLOSE" then self:close() return end
@@ -218,13 +225,28 @@ Events.OnServerCommand.Add(function(module, command, args)
     if Window.instance then Window.instance:fill(args) end
 end)
 
--- ------------------------------------------------------------------ the Admin Panel button
-local function openWindow()
+-- ------------------------------------------------------------------ the Admin Panel buttons
+-- animal (optional): see Window:new. Public for the "Animal Claims" window's History button.
+function Window.open(animal)
     if Window.instance then Window.instance:close() end
-    local window = Window:new(WINDOW_WIDTH, WINDOW_HEIGHT)
+    local window = Window:new(WINDOW_WIDTH, WINDOW_HEIGHT, animal)
     window:initialise()
     window:addToUIManager()
 end
+
+-- The buttons this mod puts in the vanilla Admin Panel: { title, tooltip, open, canUse },
+-- titles and tooltips as translation keys. Another window of this mod adds its own with
+-- Window.addAdminButton (card #210: "Animal Claims").
+local adminButtons = {}
+
+function Window.addAdminButton(button)
+    table.insert(adminButtons, button)
+end
+
+Window.addAdminButton({
+    title = "UI_GENZ_LA_AdminButton", tooltip = "UI_GENZ_LA_AdminButtonTooltip",
+    open = function() Window.open(nil) end, canUse = canSeeAnimalEvents,
+})
 
 -- ISAdminPanelUI:create() builds its buttons, then sorts EVERY child by title into two
 -- columns (ISAdminPanelUI.lua:163-177). A button added before the original runs is laid out
@@ -234,13 +256,16 @@ if not ISAdminPanelUI.genzLivestockAuditPatched then
 
     local originalCreate = ISAdminPanelUI.create
     function ISAdminPanelUI:create()
-        local button = ISButton:new(0, 0, 200, BUTTON_HGT, getText("UI_GENZ_LA_AdminButton"), self, openWindow)
-        button:initialise()
-        button:instantiate()
-        button.borderColor = self.buttonBorderColor
-        button.tooltip = getText("UI_GENZ_LA_AdminButtonTooltip")
-        self:addChild(button)
-        self.genzLivestockAuditButton = button
+        self.genzLivestockAuditButtons = {}
+        for _, spec in ipairs(adminButtons) do
+            local button = ISButton:new(0, 0, 200, BUTTON_HGT, getText(spec.title), self, spec.open)
+            button:initialise()
+            button:instantiate()
+            button.borderColor = self.buttonBorderColor
+            button.tooltip = getText(spec.tooltip)
+            self:addChild(button)
+            table.insert(self.genzLivestockAuditButtons, { button = button, canUse = spec.canUse })
+        end
         originalCreate(self)
     end
 
@@ -249,8 +274,9 @@ if not ISAdminPanelUI.genzLivestockAuditPatched then
     function ISAdminPanelUI:updateButtons()
         originalUpdateButtons(self)
         local player = getPlayer()
-        if self.genzLivestockAuditButton and player and player:getRole() then
-            self.genzLivestockAuditButton.enable = canSeeAnimalEvents()
+        if not (self.genzLivestockAuditButtons and player and player:getRole()) then return end
+        for _, added in ipairs(self.genzLivestockAuditButtons) do
+            added.button.enable = added.canUse()
         end
     end
 end

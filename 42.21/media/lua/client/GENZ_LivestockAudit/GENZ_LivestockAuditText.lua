@@ -39,6 +39,15 @@ function Text.ago(seconds)
     return Text.translate(Core.ago(seconds))
 end
 
+-- for the staff claims window (card #210)
+function Text.flag(flag)
+    return resolve(Core.flagLabel(flag))
+end
+
+function Text.origin(origin)
+    return resolve(Core.originLabel(origin))
+end
+
 -- Real date and time of the entry (server clock), for staff cross-checking with logs.
 function Text.when(timestamp)
     return os.date("%d/%m %H:%M", timestamp)

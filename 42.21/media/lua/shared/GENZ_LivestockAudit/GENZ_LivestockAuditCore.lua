@@ -411,7 +411,9 @@ end
 
 local KEY = "UI_GENZ_LA_"
 
-local ORIGINS = { manual = "manual", capsule = "capsule", genzball = "genzball", unspecified = "unspecified" }
+local ORIGINS = {
+    manual = "manual", capsule = "capsule", genzball = "genzball", transfer = "transfer", unspecified = "unspecified",
+}
 local REASONS = {
     morreu = "Died", ["animal morto"] = "Died", ["dono abriu mao"] = "OwnerLetGo",
     admin = "Admin", captured = "Captured", unclaim = "Unclaim", expired = "Expired",
@@ -437,6 +439,16 @@ local function label(map, value, prefix)
     return tostring(value)
 end
 
+-- The staff claims window (card #210) names flags and origins with the same words the
+-- entries use.
+function Core.flagLabel(flag)
+    return label(FLAGS, flag, "Flag_")
+end
+
+function Core.originLabel(origin)
+    return label(ORIGINS, origin or "unspecified", "Origin_")
+end
+
 local function weaponArg(weapon)
     if weapon == nil or WEAPONS[weapon] then return label(WEAPONS, weapon or "unknown", "Weapon_") end
     return { item = weapon }
@@ -444,6 +456,7 @@ end
 
 local function describePermission(entry, d)
     local actor = entry.actorName or "?"
+    if d.change == "public_cleared" then return KEY .. "PermPublicCleared", { actor, d.note or "?" } end
     if d.change == "user_added" then return KEY .. "PermUserAdded", { actor, d.targetName or "?" } end
     if d.change == "user_removed" then return KEY .. "PermUserRemoved", { actor, d.targetName or "?" } end
     local target = d.target == "pub" and { key = KEY .. "Everyone" } or (d.targetName or "?")
@@ -454,6 +467,12 @@ function Core.describe(entry)
     local d = entry.detail or {}
     local kind = entry.k
     local actor = entry.actorName or "?"
+    -- staff acts (card #210) read with who did it and why
+    if kind == "CLAIMED" and d.origin == "transfer" then return KEY .. "ClaimedTransfer", { actor, d.note or "?" } end
+    if kind == "RELEASED" and d.reason == "staff" then return KEY .. "ReleasedStaff", { actor, d.note or "?" } end
+    if kind == "RELEASED" and d.reason == "transferred" then
+        return KEY .. "ReleasedTransferred", { actor, d.note or "?" }
+    end
     if kind == "CLAIMED" then return KEY .. "Claimed", { label(ORIGINS, d.origin, "Origin_") } end
     if kind == "RELEASED" then return KEY .. "Released", { label(REASONS, d.reason, "Reason_") } end
     if kind == "DIED" then
