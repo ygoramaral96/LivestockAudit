@@ -15,6 +15,7 @@
 
 require "ISUI/Animal/ISAnimalUI"
 require "XpSystem/ISUI/ISSkillProgressBar"
+require "GENZ_LivestockAudit/GENZ_LivestockAuditApi"
 
 GENZ_LivestockAuditReadings = {}
 local Readings = GENZ_LivestockAuditReadings
@@ -121,9 +122,12 @@ local function yesNo(value)
     return getText(value and "IGUI_Yes" or "IGUI_No")
 end
 
--- From the claim cache GENZ_AnimalGuard already keeps on the client (no request of our own).
+-- From the claim source's own client cache (on our server, GENZ_AnimalGuard's; no request of
+-- our own). With no source the cell is left out, as for an animal nobody owns.
 local function claimCell(animal)
-    local claim = GENZ_AnimalGuard.claimOf(animal)
+    local source = GENZ_LivestockAudit.source()
+    if not source then return nil end
+    local claim = source.claimOf(animal)
     if not claim or not claim.owner then return nil end
     if claim.owner == tostring(getCurrentUserSteamID()) then
         return { color = MINE, text = getText("UI_GENZ_LA_ClaimMine") }

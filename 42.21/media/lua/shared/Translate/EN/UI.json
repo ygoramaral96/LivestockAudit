@@ -176,6 +176,7 @@
     "UI_GENZ_LA_SummaryUnseen": "unseen: %1 for 7+ d, %2 for 30+ d",
     "UI_GENZ_LA_PickAClaim": "Pick a claim in the list to see owner, permissions and friends.",
     "UI_GENZ_LA_NoClaims": "No claim with these filters.",
+    "UI_GENZ_LA_NoClaimSource": "No claim system is talking to this mod: claims cannot be listed.",
     "UI_GENZ_LA_ClaimsPageOf": "Page %1 of %2 - %3 claims",
     "UI_GENZ_LA_ReasonHint": "Write the reason (at least %1 letters). It goes into the history and the owner's letter.",
     "UI_GENZ_LA_Working": "Sending...",

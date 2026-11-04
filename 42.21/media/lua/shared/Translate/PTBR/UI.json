@@ -176,6 +176,7 @@
     "UI_GENZ_LA_SummaryUnseen": "sem ser vistos: %1 há 7+ d, %2 há 30+ d",
     "UI_GENZ_LA_PickAClaim": "Escolha um claim na lista para ver dono, permissões e amigos.",
     "UI_GENZ_LA_NoClaims": "Nenhum claim com esses filtros.",
+    "UI_GENZ_LA_NoClaimSource": "Nenhum sistema de claim conversa com este mod: os claims não podem ser listados.",
     "UI_GENZ_LA_ClaimsPageOf": "Página %1 de %2 - %3 claims",
     "UI_GENZ_LA_ReasonHint": "Escreva o motivo (mínimo %1 letras). Ele vai pro histórico e pra carta do dono.",
     "UI_GENZ_LA_Working": "Enviando...",

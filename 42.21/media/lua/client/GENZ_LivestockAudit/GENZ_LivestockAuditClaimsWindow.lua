@@ -230,6 +230,7 @@ function Window:fill(args)
     self.isLoading = false
     self.page, self.pages, self.total, self.now = args.page, args.pages, args.total, args.now
     self.summary, self.timeoutHours = args.summary, args.timeoutHours
+    self.noSource = args.noSource == true
     refill(self.ownerCombo, "UI_GENZ_LA_AllOwners", args.owners, function(owner)
         return getText("UI_GENZ_LA_OwnerCount", owner.name, tostring(owner.count)), owner.sid
     end, self.filter.owner)
@@ -380,6 +381,8 @@ function Window:prerender()
     local status
     if self.isLoading then
         status = getText("UI_GENZ_LA_Loading")
+    elseif self.noSource then
+        status = getText("UI_GENZ_LA_NoClaimSource")
     elseif self.total == 0 then
         status = getText("UI_GENZ_LA_NoClaims")
     else

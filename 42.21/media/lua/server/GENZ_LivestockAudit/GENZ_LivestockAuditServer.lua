@@ -1,7 +1,8 @@
 -- GENZ_LivestockAuditServer -- records what happens to each claimed animal (card #192).
 --
--- Listens to GENZ_AnimalEvents (announced by the creatures domain of GENZ_Equipamentos),
--- reads the engine, lets GENZ_LivestockAuditCore decide, and writes one entry per event
+-- Receives animal events through GENZ_LivestockAudit.record (GENZ_LivestockAuditApi; on our
+-- server the creatures domain of GENZ_Equipamentos calls it, card #299), reads the engine,
+-- lets GENZ_LivestockAuditCore decide, and writes one entry per event
 -- into a server-only ModData store. The store is NEVER transmitted: clients will only get
 -- the slice they ask for (phases F2/F3). Every entry is echoed to the server console with
 -- the [GENZ_LivestockAudit] tag.
@@ -18,12 +19,13 @@
 
 if isClient() and not isServer() then return end
 
-require "criaturas/GENZ_AnimalEvents"
+require "GENZ_LivestockAudit/GENZ_LivestockAuditApi"
 require "GENZ_LivestockAudit/GENZ_LivestockAuditCore"
 
 GENZ_LivestockAuditServer = GENZ_LivestockAuditServer or {}
 local Server = GENZ_LivestockAuditServer
 local Core = GENZ_LivestockAuditCore
+local API = GENZ_LivestockAudit
 
 local MODDATA_KEY = "GENZ_LivestockAudit"
 local LOG_TAG = "[GENZ_LivestockAudit] "
@@ -39,8 +41,10 @@ end
 Events.OnInitGlobalModData.Add(function()
     store = Core.initStore(ModData.getOrCreate(MODDATA_KEY))
     -- Announce it: a listener that silently failed to start would look exactly like
-    -- "nothing happened to any animal".
-    print(LOG_TAG .. "listening; store has " .. countKeys(store.byAnimal) .. " animal bucket(s)")
+    -- "nothing happened to any animal". The source registers on OnGameBoot, which the server
+    -- fires before loading the world (GameServer.doMinimumInit, 42.21), so this line knows.
+    local sourceState = API.source() and "registered" or "none (claimed animals are not audited)"
+    print(LOG_TAG .. "listening; store has " .. countKeys(store.byAnimal) .. " animal bucket(s); claim source: " .. sourceState)
 end)
 
 -- For the other files of this mod (the F2/F3 queries) and the bench.
@@ -93,9 +97,16 @@ end
 local UNCLAIMED_ID_KEY = "GENZ_LA_ID"
 local unclaimedStamps = 0
 
+-- With no claim source nothing is claimed: a server without a claim system has only
+-- animals nobody owns.
+local function isClaimed(aid)
+    local source = API.source()
+    return source ~= nil and source.isClaimed(aid) == true
+end
+
 local function isClaimedAnimal(animal)
     local aid = animal:getModData().GENZ_AID
-    return aid ~= nil and GENZAM.byAnimal[aid] ~= nil
+    return aid ~= nil and isClaimed(aid)
 end
 
 -- The id an animal nobody owns is filed under, or nil (decision D27). One that had an owner
@@ -151,10 +162,16 @@ local function logEvent(aid, kind, record, opts)
     print(LOG_TAG .. Core.consoleLine(aid, entry))
 end
 
--- robustSid can be nil for a player the server never matched to a SteamID; the name is
--- always there, so the entry still says who it was.
+-- The id the claim source gives the player (on our server, the SteamID). It can be nil:
+-- no source, or a player the server never matched; the name is always there, so the entry
+-- still says who it was.
+function Server.playerId(player)
+    local source = API.source()
+    return source and source.playerId(player)
+end
+
 local function actorOf(player)
-    return { sid = GENZAM.robustSid(player), name = player:getUsername() }
+    return { sid = Server.playerId(player), name = player:getUsername() }
 end
 
 -- Actions that take the animal somewhere. They are logged even when the owner does them,
@@ -376,8 +393,8 @@ local function onUnclaimedEvent(kind, data)
     handlers[kind](data)
 end
 
--- A kind without a handler is ignored: the announcer does not care who listens to what,
--- and a new kind added there must not break this listener.
+-- A kind without a handler is ignored: the source does not care what this mod reads, and
+-- a new kind added there must not break this one.
 local function onAnimalEvent(kind, data)
     if not handlers[kind] then return end
     if not store then
@@ -390,7 +407,7 @@ local function onAnimalEvent(kind, data)
     handlers[kind](data)
 end
 
-GENZ_AnimalEvents.subscribe(onAnimalEvent)
+API.setRecorder(onAnimalEvent)
 
 -- The claim sweep visits claimed animals only; one nobody owns is followed here, once a
 -- minute, while it is in a pen or has a bucket from before (D25, D28). One that was never in
@@ -427,12 +444,18 @@ Events.EveryOneMinute.Add(function()
     end
 end)
 
-local function isClaimed(aid)
-    return GENZAM.byAnimal[aid] ~= nil
+-- With no claim source registered, "not claimed" cannot be told from "the source failed to
+-- register", and pruning on that guess would erase the history of claimed animals. So only
+-- the buckets this mod opened itself (ids stamped "w...", unclaimedId) may go then.
+local UNCLAIMED_ID_PREFIX = "w"
+
+local function isKept(aid)
+    if API.source() then return isClaimed(aid) end
+    return string.sub(tostring(aid), 1, #UNCLAIMED_ID_PREFIX) ~= UNCLAIMED_ID_PREFIX
 end
 
 Events.EveryDays.Add(function()
-    local removed = Core.prune(store, os.time(), isClaimed)
+    local removed = Core.prune(store, os.time(), isKept)
     if removed > 0 then
         print(LOG_TAG .. "pruned " .. removed .. " unclaimed bucket(s) with no entry for 30 days")
     end

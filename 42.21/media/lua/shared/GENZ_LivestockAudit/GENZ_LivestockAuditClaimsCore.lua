@@ -2,7 +2,7 @@
 --
 -- The window lists every animal claim: whose it is, what it lets everyone do, who the owner
 -- let in, when the animal was last seen and when the claim would expire. The claim store
--- belongs to GENZ_Equipamentos (GENZAM.byAnimal / GENZAM.byOwner); the server file reads it
+-- belongs to whoever registered the claim source (GENZ_LivestockAuditApi: source.claims()); the server file reads it
 -- and hands the tables over, and everything here works on plain tables -- the whole rule
 -- set runs in the lupa bench (scripts/testar_claims_staff.py) without a game.
 
@@ -22,7 +22,7 @@ local function byName(a, b)
     return string.lower(a.name) < string.lower(b.name)
 end
 
--- The flags of `perms` that are on, in the order of `flags` (GENZAM.PERM_FLAGS, the order
+-- The flags of `perms` that are on, in the order of `flags` (source.permissionFlags(), the order
 -- of the F5 tab), so two rows read alike.
 local function flagsOn(perms, flags)
     local on = {}
@@ -41,7 +41,7 @@ function Claims.expiresIn(lastLogon, timeoutHours, now)
     return lastLogon + timeoutHours * 3600 - now
 end
 
--- opts = { now, timeoutHours, flags }. owner = GENZAM.byOwner[rec.owner] (lastLogon).
+-- opts = { now, timeoutHours, flags }. owner = owners[rec.owner] (lastLogon).
 function Claims.row(aid, rec, owner, opts)
     local friends = {}
     for sid, perms in pairs(rec.users or {}) do
@@ -65,8 +65,8 @@ function Claims.row(aid, rec, owner, opts)
     }
 end
 
--- Every claim as a row, by owner name then id. records = GENZAM.byAnimal, owners =
--- GENZAM.byOwner.
+-- Every claim as a row, by owner name then id. records, owners = source.claims()
+-- (GENZ_LivestockAuditApi).
 function Claims.rows(records, owners, opts)
     local rows = {}
     for aid, rec in pairs(records) do
