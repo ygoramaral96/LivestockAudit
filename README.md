@@ -43,6 +43,6 @@ Contents/mods/LivestockAudit/
 
 ## License
 
-[![Mod permissions: Ask for permission](https://projectzomboid.com/images/MODS_03.png)](https://theindiestone.com/forums/index.php/topic/2530-mod-permissions/?p=36478)
+[![Mod permissions: Ask for permission](https://raw.githubusercontent.com/ygoramaral96/LivestockAudit/main/docs/mod-permissions.png)](https://theindiestone.com/forums/index.php/topic/2530-mod-permissions/?p=36478)
 
 **Ask for permission** (The Indie Stone mod permissions badge): the code and art made for this mod are mine. The source is public so you can read it, but reusing it, changing it, re-uploading it or putting it in a modpack needs my permission first. Ask in the Workshop comments or open an issue here.
