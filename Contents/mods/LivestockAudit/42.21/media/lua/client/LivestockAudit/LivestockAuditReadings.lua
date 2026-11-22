@@ -1,7 +1,7 @@
 -- LivestockAuditReadings -- what the vanilla Animal Info panel would say about an animal
--- at the viewer's Animal Care level, as cells the Check Zone list draws (card #192 F4, card #201).
+-- at the viewer's Animal Care level, as cells the Check Zone list draws.
 --
--- THE GATE IS VANILLA ITSELF (decision D8). Each cell is the text the vanilla panel shows at
+-- THE GATE IS VANILLA ITSELF. Each cell is the text the vanilla panel shows at
 -- that level (getAppearanceText, getHealthText, getStressTxt, getAgeText, and ISAnimalUI's
 -- getPregnantText / getUdderText / getWoolText / getClutchSizeText, called the way the panel
 -- calls them) plus the panel's own conditions for showing the line (ISAnimalUI.lua:102-215
@@ -10,8 +10,8 @@
 --
 -- A dot cell is { color, text }; a text cell is { text } and is written in the column. No
 -- cell (nil) means the panel would not show that line for this animal at this level.
--- Nothing here draws: LivestockAuditDots does. scripts/testar_livestock_readings.py
--- runs this file against the REAL vanilla ISAnimalUI.lua, without a game.
+-- Nothing here draws: LivestockAuditDots does, so this file can be checked against the
+-- REAL vanilla ISAnimalUI.lua without a game.
 
 require "ISUI/Animal/ISAnimalUI"
 require "XpSystem/ISUI/ISSkillProgressBar"
@@ -122,8 +122,8 @@ local function yesNo(value)
     return getText(value and "IGUI_Yes" or "IGUI_No")
 end
 
--- From the claim source's own client cache (on our server, GENZ_AnimalGuard's; no request of
--- our own). With no source the cell is left out, as for an animal nobody owns.
+-- From the claim source's own client cache (no request of our own). With no source the cell
+-- is left out, as for an animal nobody owns.
 local function claimCell(animal)
     local source = LivestockAudit.source()
     if not source then return nil end

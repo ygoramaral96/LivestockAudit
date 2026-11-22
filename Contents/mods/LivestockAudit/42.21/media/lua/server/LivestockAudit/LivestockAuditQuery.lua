@@ -1,5 +1,5 @@
--- LivestockAuditQuery -- answers the staff list (F2), the owner History (F3) and the
--- staff "Animal Claims" list (card #210).
+-- LivestockAuditQuery -- answers the staff list, the owner History and the
+-- staff "Animal Claims" list.
 --
 -- Every answer is cut here, on the server: a client never receives the store, only the
 -- slice its role (staff) or its claims, its distance to the pen and its Animal Care level
@@ -26,7 +26,7 @@ local REQUEST_COOLDOWN_MS = 500
 local lastRequestAt = {}
 
 -- The same capability that enables vanilla's "See tickets" in the admin panel: whoever
--- answers support is whoever investigates "my animal is gone" (decision D18).
+-- answers support is whoever investigates "my animal is gone".
 local function hasCapability(player, capability)
     local role = player:getRole()
     return role ~= nil and role:hasCapability(capability)
@@ -65,7 +65,7 @@ local function penRect(zone)
 end
 
 -- args = { x, y, z } of the pen whose Check Zone window asked. The answer holds the asker's
--- own entries plus those of animals nobody owned (D26), so the pen must be one the asker is
+-- own entries plus those of animals nobody owned, so the pen must be one the asker is
 -- near: without that, a forged command could scan the map for pens -- that is, for bases.
 local function answerHistory(player, args)
     local x, y, z = tonumber(args.x), tonumber(args.y), tonumber(args.z)
@@ -84,7 +84,7 @@ local function answerHistory(player, args)
 end
 
 
--- args = { filter = {...}, page = n } (card #210). The staff "Animal Claims" window: every
+-- args = { filter = {...}, page = n }. The staff "Animal Claims" window: every
 -- claim the claim source reports -- read here, never written -- cut to one page. With no
 -- source the window gets `noSource = true` and says so, instead of an empty list that reads
 -- as "nobody has a claim". Whether the

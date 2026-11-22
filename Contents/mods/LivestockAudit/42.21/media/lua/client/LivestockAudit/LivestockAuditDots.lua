@@ -1,9 +1,9 @@
--- LivestockAuditDots -- the vanilla Check Zone list, extended (card #192 F4, card #201):
+-- LivestockAuditDots -- the vanilla Check Zone list, extended:
 -- status cells per animal in four tabs (care, harvest, breeding, profile), the species icon,
 -- the name colored by sex, an Animal Care bar and a header row.
 --
 -- WHAT EACH CELL SAYS comes from LivestockAuditReadings: the text the vanilla Animal
--- Info panel shows at the viewer's level, as a color or a short text (decision D8). This
+-- Info panel shows at the viewer's level, as a color or a short text. This
 -- file only draws.
 --
 -- Drawn OVER the vanilla window, nothing replaced: the tab buttons and one header row are
@@ -196,8 +196,8 @@ end
 local function drawSkillBar(zoneWindow)
     local level, fraction, name = Readings.skillProgress(zoneWindow.player)
     local text = name .. " " .. tostring(level)
-    -- As wide as the text when it is longer: "Cuidados com Animais 10" centered on a 90 px bar
-    -- stuck out past the window's right edge (30/09).
+    -- As wide as the text when it is longer: a translated "Animal Care 10" centered on a 90 px bar
+    -- stuck out past the window's right edge.
     local width = math.max(BAR_WIDTH, measure(text))
     local x = zoneWindow.width - 10 - width
     local y = 20   -- vanilla's title line (ISDesignationAnimalZoneUI.lua:279)

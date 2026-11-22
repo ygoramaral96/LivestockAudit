@@ -1,15 +1,16 @@
--- LivestockAuditClaimsWindow -- "Animal Claims" in the vanilla Admin Panel (card #210).
+-- LivestockAuditClaimsWindow -- "Animal Claims" in the vanilla Admin Panel.
 --
 -- Staff sees every animal claim -- the owner, what it lets EVERYONE do, the friends the owner
 -- let in, the last sighting, when it expires -- and, with the role for it, acts on one:
 -- release it, clear its public flags, transfer it to a player online, or release the
--- "ghosts" of a page (claims whose animal nobody has seen for days). In card #193, "whose
--- sheep is this and what does it let people do?" cost a read of the save by SFTP.
+-- "ghosts" of a page (claims whose animal nobody has seen for days). Without it, "whose
+-- sheep is this and what does it let people do?" costs a read of the save.
 --
 -- The list comes from this mod's server one page at a time (LivestockAuditQuery,
--- module LivestockAudit). The actions go to the claim store's own server
--- (GENZ_AnimalManagerServer, module GENZ_AM), which checks the role again, refuses without a
--- reason, writes the audit with the staff member as author and sends the owner a letter.
+-- module LivestockAudit). The actions go to the claim store's own server, on the network
+-- module the claim source names (actionModule, LivestockAuditApi); that server checks the
+-- role again, refuses without a reason and writes the audit with the staff member as author.
+-- A source that names no module leaves the window read-only.
 -- Looking takes AnswerTickets, acting AnimalCheats, teleporting TeleportToCoordinates.
 -- Same look as "Animal Events" (the vanilla PVP Log Tool).
 
@@ -19,6 +20,7 @@ require "ISUI/ISComboBox"
 require "ISUI/ISScrollingListBox"
 require "ISUI/ISTextBox"
 require "ISUI/ISModalDialog"
+require "LivestockAudit/LivestockAuditApi"
 require "LivestockAudit/LivestockAuditClaimsCore"
 require "LivestockAudit/LivestockAuditText"
 require "LivestockAudit/LivestockAuditAdminPanel"
@@ -28,7 +30,6 @@ local Text = LivestockAuditText
 local EventsWindow = LivestockAuditAdminWindow
 
 local NET = "LivestockAudit"
-local CLAIMS_NET = "GENZ_AM"
 local FONT_HGT_SMALL = getTextManager():getFontHeight(UIFont.Small)
 local FONT_HGT_MEDIUM = getTextManager():getFontHeight(UIFont.Medium)
 local PAD = 10
@@ -51,7 +52,13 @@ local function hasCapability(capability)
 end
 
 local function canSeeClaims() return hasCapability(Capability.AnswerTickets) end
-local function canActOnClaims() return hasCapability(Capability.AnimalCheats) end
+-- The claim server's network module, or nil when the source takes no staff actions.
+local function claimsNet()
+    local source = LivestockAudit.source()
+    return source and source.actionModule and source.actionModule()
+end
+
+local function canActOnClaims() return claimsNet() ~= nil and hasCapability(Capability.AnimalCheats) end
 
 -- Cut to fit `maxWidth` pixels, with "..." when cut.
 local function fit(text, maxWidth)
@@ -134,7 +141,7 @@ function Window:initialise()
     self.ownerCombo = addFilterCombo(self, PAD, top, 200, getText("UI_LivestockAudit_AllOwners"), {})
     self.typeCombo = addFilterCombo(self, self.ownerCombo:getRight() + PAD, top, 140, getText("UI_LivestockAudit_AllTypes"), {})
     self.kindCombo = addFilterCombo(self, self.typeCombo:getRight() + PAD, top, 110, getText("UI_LivestockAudit_AllClaimKinds"), {
-        { getText("UI_LivestockAudit_ClaimKind_fazenda"), "fazenda" }, { getText("UI_LivestockAudit_ClaimKind_cao"), "cao" },
+        { getText("UI_LivestockAudit_ClaimKind_farm"), "farm" }, { getText("UI_LivestockAudit_ClaimKind_dog"), "dog" },
     })
     self.publicCombo = addFilterCombo(self, self.kindCombo:getRight() + PAD, top, 150, getText("UI_LivestockAudit_PublicAny"), {
         { getText("UI_LivestockAudit_PublicOpen"), "open" }, { getText("UI_LivestockAudit_PublicPickup"), "pickup" },
@@ -175,7 +182,7 @@ function Window:initialise()
     self.unseenButton = addButton(self, self.width - PAD - 260, navY, 260, getText("UI_LivestockAudit_ReleaseUnseen"), "RELEASE_UNSEEN")
 
     self:request(1)
-    if canActOnClaims() then sendClientCommand(CLAIMS_NET, "adminOnline", {}) end
+    if canActOnClaims() then sendClientCommand(claimsNet(), "adminOnline", {}) end
 end
 
 -- ------------------------------------------------------------------ the list
@@ -358,8 +365,8 @@ function Window:updateButtons()
     self.teleportButton:setEnable(row ~= nil and hasCapability(Capability.TeleportToCoordinates))
     self.clearPublicButton:setEnable(canAct and row ~= nil and #row.publicOn > 0)
     self.releaseButton:setEnable(canAct and row ~= nil)
-    -- a dog is not transferred (GENZ_AnimalManagerServer, staffTransfer)
-    self.transferButton:setEnable(canAct and row ~= nil and row.kind ~= "cao" and comboValue(self.transferCombo) ~= nil)
+    -- a dog is not transferred: it follows its owner, not a pen
+    self.transferButton:setEnable(canAct and row ~= nil and row.kind ~= "dog" and comboValue(self.transferCombo) ~= nil)
     self.unseenButton:setEnable(canAct and #self:unseenClaims() > 0)
 end
 
@@ -412,7 +419,7 @@ end
 
 function Window:act(command, args)
     self.actionStatus = getText("UI_LivestockAudit_Working")
-    sendClientCommand(CLAIMS_NET, command, args)
+    sendClientCommand(claimsNet(), command, args)
 end
 
 -- Every action carries the owner the window showed: the server refuses ("changed") when the
@@ -478,7 +485,7 @@ function Window:onActionResult(result)
         self.actionStatus = getText("UI_LivestockAudit_Refused_" .. tostring(result.code))
     end
     self:request(self.page)
-    if canActOnClaims() then sendClientCommand(CLAIMS_NET, "adminOnline", {}) end
+    if canActOnClaims() then sendClientCommand(claimsNet(), "adminOnline", {}) end
 end
 
 function Window:fillOnline(list)
@@ -521,9 +528,9 @@ Events.OnServerCommand.Add(function(module, command, args)
     if not window then return end
     if module == NET and command == "claimsResult" then
         window:fill(args)
-    elseif module == CLAIMS_NET and command == "adminActionResult" then
+    elseif module == claimsNet() and command == "adminActionResult" then
         window:onActionResult(args)
-    elseif module == CLAIMS_NET and command == "adminOnline" then
+    elseif module == claimsNet() and command == "adminOnline" then
         window:fillOnline(args.list)
     end
 end)

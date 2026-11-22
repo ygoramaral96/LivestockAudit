@@ -1,6 +1,6 @@
 -- LivestockAuditHistory -- the "History" button next to Help in the vanilla Check
--- Zone window (card #192, F3): what happened in this pen to the asker's claimed animals and
--- to the animals nobody owns (F5, decision D26).
+-- Zone window: what happened in this pen to the asker's claimed animals and
+-- to the animals nobody owns.
 --
 -- The window sends one point of the pen; the server finds the pen itself, checks the asker
 -- is near it, keeps the asker's own entries plus the unowned ones and cuts them to the

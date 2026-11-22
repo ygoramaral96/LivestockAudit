@@ -1,4 +1,4 @@
--- LivestockAuditAdminPanel -- "Animal Events" in the vanilla Admin Panel (card #192, F2).
+-- LivestockAuditAdminPanel -- "Animal Events" in the vanilla Admin Panel.
 --
 -- A button that takes its place among the vanilla ones, and a window in the style of the
 -- vanilla PVP Log Tool (ISPVPLogToolUI): owner and kind filters, a page of events, teleport
@@ -40,7 +40,7 @@ end
 LivestockAuditAdminWindow = ISPanel:derive("LivestockAuditAdminWindow")
 local Window = LivestockAuditAdminWindow
 
--- animal (optional, card #210) = { aid, label }: opened from the "Animal Claims" window, the
+-- animal (optional) = { aid, label }: opened from the "Animal Claims" window, the
 -- list shows that one animal's events.
 function Window:new(width, height, animal)
     local x = getCore():getScreenWidth() / 2 - width / 2
@@ -192,7 +192,7 @@ function Window:prerender()
 end
 
 -- Same command the vanilla PVP Log Tool uses to go to where a kill happened. Public: the
--- "Animal Claims" window (card #210) goes to an animal's last position with it.
+-- "Animal Claims" window goes to an animal's last position with it.
 local function teleportTo(item)
     local position = tostring(item.x) .. "," .. tostring(item.y) .. "," .. tostring(item.z)
     if isClient() then
@@ -236,7 +236,7 @@ end
 
 -- The buttons this mod puts in the vanilla Admin Panel: { title, tooltip, open, canUse },
 -- titles and tooltips as translation keys. Another window of this mod adds its own with
--- Window.addAdminButton (card #210: "Animal Claims").
+-- Window.addAdminButton ("Animal Claims").
 local adminButtons = {}
 
 function Window.addAdminButton(button)

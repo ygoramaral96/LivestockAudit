@@ -2,7 +2,7 @@
 --
 -- LivestockAuditCore decides WHAT an entry says (a translation key plus arguments,
 -- testable without the game); this file only resolves those into text with the engine's
--- translator. Shared by the staff window (F2) and the owner History (F3).
+-- translator. Shared by the staff window and the owner History.
 
 require "LivestockAudit/LivestockAuditCore"
 
@@ -39,7 +39,7 @@ function Text.ago(seconds)
     return Text.translate(Core.ago(seconds))
 end
 
--- for the staff claims window (card #210)
+-- for the staff claims window
 function Text.flag(flag)
     return resolve(Core.flagLabel(flag))
 end

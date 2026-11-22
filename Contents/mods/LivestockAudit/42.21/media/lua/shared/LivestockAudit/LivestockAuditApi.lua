@@ -1,13 +1,14 @@
--- LivestockAuditApi -- the only door into LivestockAudit from another mod (card #299).
+-- LivestockAuditApi -- the only door into LivestockAudit from another mod.
 --
 -- WHY IT EXISTS
--- This mod is standalone: it is published on its own. It must not read anyone's internals (study of card #142, §R.9). Whoever owns
--- claimed animals TELLS it what happens, through two calls:
+-- This mod is standalone: it is published on its own and reads nobody's internals. Whoever
+-- owns claimed animals TELLS it what happens, through these calls:
 --
---   LivestockAudit.record(kind, data)    an animal event, as it happens (server only)
---   LivestockAudit.registerSource(src)   who answers questions about the claims
+--   LivestockAudit.record(kind, data)        an animal event, as it happens (server only)
+--   LivestockAudit.registerSource(src)       who answers questions about the claims
+--   LivestockAudit.migrateHistory(opts)      history kept under other names (server only)
 --
--- With nobody calling either, the mod still follows animals nobody owns inside a pen
+-- With nobody calling them, the mod still follows animals nobody owns inside a pen
 -- (vanilla engine only), and its boot line in the server console says "claim source: none".
 --
 -- EVENTS (kind -> data). `record` is the claim record at that moment, READ-ONLY here;
@@ -24,12 +25,18 @@
 --   "renamed"    { aid, record, animal, actor, from, to, allowed }
 -- "attacked", "handled", "renamed" and "died" may also come for an animal nobody owns:
 -- record = nil. An unknown kind is ignored, so a source may announce more than this mod reads.
--- A claim record carries: owner (player id), ownerName, kind ("fazenda" | "cao"), type,
+-- Words this mod names (any other value is shown as plain text):
+--   origin: "manual" | "capsule" | "ball" (set free from a capture item) | "transfer"
+--   reason: "died" | "let_go" (the owner gave it up) | "admin" | "captured" | "unclaim"
+--           | "expired" | "staff" | "transferred"
+-- A claim record carries: owner (player id), ownerName, kind ("farm" | "dog"), type,
 -- breed, name, female, x, y, z, claimTime, seenAt, users = { [id] = { name, <flag> = bool } },
 -- pub = { <flag> = bool }.
 --
 -- SOURCE. One table; each function is asked for only where it is used.
 --   server:  playerId(player) -> id or nil      the id claim records use as `owner`
+--            animalId(animal) -> aid or nil      the claim id the animal carries, kept after
+--                                                its claim ends (its history goes on under it)
 --            isClaimed(aid) -> bool
 --            claims() -> records, owners         records[aid] = claim record;
 --                                                owners[id] = { lastLogon = <epoch s> }
@@ -38,18 +45,36 @@
 --            permissionFlags() -> { "AllowFeed", ... }   display order of the flags
 --            isLoaded(aid) -> bool               the animal is in a loaded cell now
 --   client:  claimOf(animal) -> { owner } or nil
+--            actionModule() -> string or nil     OPTIONAL. The network module of the claim
+--                                                server that takes the staff actions of the
+--                                                claims window; without it the window only
+--                                                looks. That server takes adminOnline,
+--                                                adminUnclaim, adminClearPublic, adminTransfer,
+--                                                adminUnclaimMany and answers adminOnline and
+--                                                adminActionResult on the same module; a
+--                                                refused transfer (code "noslot") names the
+--                                                pot as kind = "farm" | "dog".
 -- Register it when every mod's Lua has loaded (OnGameBoot on the server, OnGameStart on the
 -- client): then the order of the two mods in `Mods=` does not matter.
+--
+-- MIGRATION. migrateHistory(opts), on the server, from OnInitGlobalModData:
+--   opts.store    a history store kept under another ModData key: copied in (deep) only while
+--                 this mod's store is still empty; the old table is never written.
+--   opts.words    { [detail field] = { [old word] = new word } }, e.g. { reason = { ... } }:
+--                 entries already stored with an old word are rewritten to the new one.
+--                 Running it again changes nothing.
+-- It may run before or after this mod's own OnInitGlobalModData: both work on the same table.
 
 LivestockAudit = LivestockAudit or {}
 local API = LivestockAudit
 
 local LOG_TAG = "[LivestockAudit] "
-local SERVER_FUNCTIONS = { "playerId", "isClaimed", "claims", "slots", "timeoutHours", "permissionFlags", "isLoaded" }
+local SERVER_FUNCTIONS = { "playerId", "animalId", "isClaimed", "claims", "slots", "timeoutHours", "permissionFlags", "isLoaded" }
 local CLIENT_FUNCTIONS = { "claimOf" }
 
 local registeredSource = nil
 local recorder = nil
+local migrator = nil
 
 local function isServerSide()
     return isServer() or not isClient()
@@ -85,8 +110,8 @@ function API.registerSource(source)
     print(LOG_TAG .. "claim source registered")
 end
 
--- The registered source, or nil: on a server with no claim system that is normal; on ours it
--- means the bridge never registered, and the boot line says so.
+-- The registered source, or nil: on a server with no claim system that is normal; where a
+-- claim mod runs it means its bridge never registered, and the boot line says so.
 function API.source()
     return registeredSource
 end
@@ -101,4 +126,19 @@ function API.record(kind, data)
         error("LivestockAudit.record: no recorder -- record() runs on the server, after the audit server file loaded")
     end
     recorder(kind, data)
+end
+
+-- For this mod's server file only: who handles migrateHistory().
+function API.setMigrator(handler)
+    migrator = handler
+end
+
+function API.migrateHistory(opts)
+    if migrator == nil then
+        error("LivestockAudit.migrateHistory: no migrator -- it runs on the server, after the audit server file loaded")
+    end
+    if type(opts) ~= "table" then
+        error("LivestockAudit.migrateHistory: opts must be a table, got " .. type(opts))
+    end
+    return migrator(opts)
 end

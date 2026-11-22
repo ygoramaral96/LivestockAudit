@@ -1,29 +1,29 @@
--- LivestockAuditCore -- pure rules of the livestock audit (card #192).
+-- LivestockAuditCore -- pure rules of the livestock audit.
 --
 -- No engine call lives here: every function receives plain values and tables, so the
--- whole rule set runs in the lupa bench (scripts/testar_livestock_audit.py) without a
--- game. The server file reads the engine and hands the values over.
+-- whole rule set runs in a plain Lua bench without a game. The server file reads the
+-- engine and hands the values over.
 --
 -- STORE (server-only ModData, never transmitted):
 --   store.byAnimal[aid] = { last = <os.time of the newest entry>, items = { entry... }, state = {...} }
 --   store.byOwner[sid]  = { name = <newest owner name>, animals = { [aid] = true } }
--- One bucket per ANIMAL (Ygor, 29/09): a noisy animal cannot push another animal's
--- history out, and the bucket outlives the claim record, which is deleted on death.
--- A bucket is keyed by the animal's GENZ_AID, or -- for an animal in a pen that never had an
--- owner -- by the id this mod stamps on it (F5, decision D27). Entries of an animal nobody
+-- One bucket per ANIMAL: a noisy animal cannot push another animal's history out, and the
+-- bucket outlives the claim record, which is deleted on death.
+-- A bucket is keyed by the claim id the animal carries (the source's animalId), or -- for an
+-- animal in a pen that never had an owner -- by the id this mod stamps on it. Entries of an animal nobody
 -- owned at the time carry no `owner` and are in no byOwner index.
 
 LivestockAuditCore = {}
 local Core = LivestockAuditCore
 
-Core.MAX_EVENTS_PER_ANIMAL = 150            -- decision D15
-Core.RETENTION_SECONDS = 30 * 24 * 60 * 60  -- D15: unclaimed bucket with no new entry for 30 days is dropped
+Core.MAX_EVENTS_PER_ANIMAL = 150            
+Core.RETENTION_SECONDS = 30 * 24 * 60 * 60  -- unclaimed bucket with no new entry for 30 days is dropped
 Core.CRITICAL_ON = 0.8                      -- hunger/thirst above this is critical
 Core.CRITICAL_OFF = 0.6                     -- re-armed only below this, so a need hovering at 0.8 logs once
 Core.DEATH_NEED = 0.9                       -- a need above this at death is named as the cause
 -- The coarse branch of vanilla ISAnimalUI:getPregnantText (skill <= 4) shows nothing below
 -- 20% of the pregnancy. Logging only from there means the log never reveals a pregnancy
--- earlier than the game itself would (decision D8).
+-- earlier than the game itself would.
 Core.PREGNANCY_VISIBLE = 0.2
 -- A pregnancy last seen at 95%+ that ends is a birth; ending earlier has no known reason
 -- and is logged as such, never guessed.
@@ -46,11 +46,8 @@ local function isEmpty(t)
     return true
 end
 
--- Names the audit's data had before the mod was renamed (it shipped as GENZ_LivestockAudit).
--- The old keys stay readable so a save keeps its history; nothing is ever written to them.
-Core.LEGACY_MODDATA_KEY = "GENZ_LivestockAudit"
+-- The animal ModData key of the id this mod stamps on an animal nobody owns.
 Core.UNCLAIMED_ID_KEY = "LivestockAuditId"
-Core.LEGACY_UNCLAIMED_ID_KEY = "GENZ_LA_ID"
 
 local function deepCopy(value)
     if type(value) ~= "table" then return value end
@@ -69,13 +66,31 @@ local function isEmptyStore(store)
     return true
 end
 
--- First load under the new name: when the new store is still empty and the old one has data,
--- the old content is COPIED in (deep: later writes never touch the old table, so going back is
--- doing nothing). Returns true when it copied. Run before initStore.
-function Core.migrateLegacyStore(current, legacy)
-    if type(legacy) ~= "table" or isEmptyStore(legacy) or not isEmptyStore(current) then return false end
-    for k, v in pairs(legacy) do current[k] = deepCopy(v) end
+-- History kept under another name (LivestockAudit.migrateHistory): when this store is still
+-- empty and the other one has data, the other content is COPIED in (deep: later writes never
+-- touch the other table, so going back is doing nothing). Returns true when it copied.
+function Core.importStore(current, other)
+    if type(other) ~= "table" or isEmptyStore(other) or not isEmptyStore(current) then return false end
+    for k, v in pairs(other) do current[k] = deepCopy(v) end
     return true
+end
+
+-- Rewrites entry.detail[field] of every stored entry whose value is a key of `words`
+-- ({ [old] = new }). Returns how many entries changed; a second run changes none.
+function Core.renameDetailWords(store, field, words)
+    if type(words) ~= "table" then return 0 end
+    local changed = 0
+    for _, bucket in pairs(store.byAnimal) do
+        for _, entry in ipairs(bucket.items) do
+            local detail = entry.detail
+            local new = detail and words[detail[field]]
+            if new then
+                detail[field] = new
+                changed = changed + 1
+            end
+        end
+    end
+    return changed
 end
 
 function Core.initStore(store)
@@ -117,7 +132,7 @@ local function isOlder(a, b)
 end
 
 -- An animal followed while nobody owned it, then claimed: its entries move to the claim's
--- bucket so its history reads as one (decision D27). Oldest first, capped like any bucket;
+-- bucket so its history reads as one. Oldest first, capped like any bucket;
 -- the claim's bucket keeps its own state when it has one (the claim just set its baseline).
 function Core.merge(store, fromId, toId)
     local from = store.byAnimal[fromId]
@@ -296,16 +311,16 @@ function Core.consoleLine(aid, entry)
 end
 
 -- ------------------------------------------------------------------ reading the store
--- The staff list (F2) and the owner History (F3) are both cut here, on the server side of
+-- The staff list and the owner History are both cut here, on the server side of
 -- the wire: a client only ever receives the slice its role and its level allow.
 
 Core.PAGE_SIZE = 50
-Core.HISTORY_LIMIT = 120                    -- decision D16
--- The History shows animals nobody owns to whoever opens the pen (D26), so the server answers
+Core.HISTORY_LIMIT = 120                    
+-- The History shows animals nobody owns to whoever opens the pen, so the server answers
 -- only an asker standing this many tiles or fewer from the pen's edge. Provisional: the Check
 -- Zone opens from the zone's own context menu, so the asker is looking at it.
 Core.PEN_REACH = 50
--- Owner filter value for "entries of animals nobody owned at the time" (staff list, D26).
+-- Owner filter value for "entries of animals nobody owned at the time" (staff list).
 Core.UNOWNED = "unowned"
 
 -- Every kind the audit writes, in the order the staff filter lists them.
@@ -401,7 +416,7 @@ function Core.visibleTo(entry, level)
 end
 
 -- The History of one zone group for one asker: their own entries (the owner at the time of
--- each entry) plus those of animals nobody owned at the time (D26), only this zone, cut to
+-- each entry) plus those of animals nobody owned at the time, only this zone, cut to
 -- their level, newest first, at most HISTORY_LIMIT. ownerSid may be nil (no SteamID
 -- matched): the asker then sees only the unowned ones.
 function Core.history(store, ownerSid, zoneKey, level)
@@ -444,10 +459,10 @@ end
 local KEY = "UI_LivestockAudit_"
 
 local ORIGINS = {
-    manual = "manual", capsule = "capsule", genzball = "genzball", transfer = "transfer", unspecified = "unspecified",
+    manual = "manual", capsule = "capsule", ball = "ball", transfer = "transfer", unspecified = "unspecified",
 }
 local REASONS = {
-    morreu = "Died", ["animal morto"] = "Died", ["dono abriu mao"] = "OwnerLetGo",
+    died = "Died", let_go = "OwnerLetGo",
     admin = "Admin", captured = "Captured", unclaim = "Unclaim", expired = "Expired",
 }
 local CAUSES = { hunger = "hunger", thirst = "thirst", old_age = "old_age", unknown = "unknown" }
@@ -471,7 +486,7 @@ local function label(map, value, prefix)
     return tostring(value)
 end
 
--- The staff claims window (card #210) names flags and origins with the same words the
+-- The staff claims window names flags and origins with the same words the
 -- entries use.
 function Core.flagLabel(flag)
     return label(FLAGS, flag, "Flag_")
@@ -499,7 +514,7 @@ function Core.describe(entry)
     local d = entry.detail or {}
     local kind = entry.k
     local actor = entry.actorName or "?"
-    -- staff acts (card #210) read with who did it and why
+    -- staff acts read with who did it and why
     if kind == "CLAIMED" and d.origin == "transfer" then return KEY .. "ClaimedTransfer", { actor, d.note or "?" } end
     if kind == "RELEASED" and d.reason == "staff" then return KEY .. "ReleasedStaff", { actor, d.note or "?" } end
     if kind == "RELEASED" and d.reason == "transferred" then

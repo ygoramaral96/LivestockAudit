@@ -1,20 +1,19 @@
--- LivestockAuditServer -- records what happens to each claimed animal (card #192).
+-- LivestockAuditServer -- records what happens to each claimed animal.
 --
--- Receives animal events through LivestockAudit.record (LivestockAuditApi; on our
--- server the creatures domain of GENZ_Equipamentos calls it, card #299), reads the engine,
--- lets LivestockAuditCore decide, and writes one entry per event
--- into a server-only ModData store. The store is NEVER transmitted: clients will only get
--- the slice they ask for (phases F2/F3). Every entry is echoed to the server console with
+-- Receives animal events through LivestockAudit.record (LivestockAuditApi; the claim
+-- source calls it), reads the engine, lets LivestockAuditCore decide, and writes one
+-- entry per event into a server-only ModData store. The store is NEVER transmitted: clients will only get
+-- the slice they ask for. Every entry is echoed to the server console with
 -- the [LivestockAudit] tag.
 --
--- Kinds recorded so far: CLAIMED, RELEASED, DIED, PREGNANT, FERTILIZED, GAVE_BIRTH,
--- PREGNANCY_ENDED, GREW_UP, CRITICAL (F1a); LEFT_ZONE, ENTERED_ZONE (F1b); ATTACKED,
--- HANDLED (F1c); PERMISSION, REATTACHED, DOWNED + the origin of a CLAIMED and the
--- reason of a RELEASED ("capsule", "genzball", "captured"...) (F1d).
+-- Kinds recorded: CLAIMED, RELEASED, DIED, PREGNANT, FERTILIZED, GAVE_BIRTH,
+-- PREGNANCY_ENDED, GREW_UP, CRITICAL, LEFT_ZONE, ENTERED_ZONE, ATTACKED, HANDLED,
+-- PERMISSION, REATTACHED, DOWNED, RENAMED, plus the origin of a CLAIMED and the
+-- reason of a RELEASED ("capsule", "ball", "captured"...).
 -- Every entry carries the zone group the animal was in, which is what the owner's
--- History (F3) filters by; an entry outside any zone is for staff only (decision D13).
--- F5 adds RENAMED, and follows animals NOBODY owns while they are in a pen (decisions
--- D24-D28): hits, handling that moves them, death, rename (announced with no record) and,
+-- History filters by; an entry outside any zone is for staff only.
+-- It also follows animals NOBODY owns while they are in a pen: hits, handling that moves
+-- them, death, rename (announced with no record) and,
 -- from this file's own sweep, critical needs and leaving/entering a pen.
 
 if isClient() and not isServer() then return end
@@ -38,16 +37,26 @@ local function countKeys(t)
     return n
 end
 
-Events.OnInitGlobalModData.Add(function()
-    local current = ModData.getOrCreate(MODDATA_KEY)
-    -- Saves from before the rename hold the history under the old key: copy it once, leave it be.
-    local legacy = ModData.exists(Core.LEGACY_MODDATA_KEY) and ModData.get(Core.LEGACY_MODDATA_KEY) or nil
-    local migrated = Core.migrateLegacyStore(current, legacy)
-    store = Core.initStore(current)
-    if migrated then
-        print(LOG_TAG .. "history of the old name (" .. Core.LEGACY_MODDATA_KEY .. ") copied into " .. MODDATA_KEY
-            .. ": " .. countKeys(store.byAnimal) .. " animal bucket(s)")
+-- LivestockAudit.migrateHistory (contract in LivestockAuditApi). It opens the store itself, so
+-- it works whether the caller's OnInitGlobalModData runs before or after this file's.
+local function migrateHistory(opts)
+    local current = Core.initStore(ModData.getOrCreate(MODDATA_KEY))
+    if Core.importStore(current, opts.store) then
+        print(LOG_TAG .. "history kept under another name copied into " .. MODDATA_KEY
+            .. ": " .. countKeys(current.byAnimal) .. " animal bucket(s)")
     end
+    local renamed = 0
+    for field, words in pairs(opts.words or {}) do
+        renamed = renamed + Core.renameDetailWords(current, field, words)
+    end
+    if renamed > 0 then
+        print(LOG_TAG .. "renamed the words of " .. renamed .. " stored entr" .. (renamed == 1 and "y" or "ies"))
+    end
+end
+API.setMigrator(migrateHistory)
+
+Events.OnInitGlobalModData.Add(function()
+    store = Core.initStore(ModData.getOrCreate(MODDATA_KEY))
     -- Announce it: a listener that silently failed to start would look exactly like
     -- "nothing happened to any animal". The source registers on OnGameBoot, which the server
     -- fires before loading the world (GameServer.doMinimumInit, 42.21), so this line knows.
@@ -55,7 +64,7 @@ Events.OnInitGlobalModData.Add(function()
     print(LOG_TAG .. "listening; store has " .. countKeys(store.byAnimal) .. " animal bucket(s); claim source: " .. sourceState)
 end)
 
--- For the other files of this mod (the F2/F3 queries) and the bench.
+-- For the other files of this mod (the queries) and the bench.
 function Server.store()
     return store
 end
@@ -80,7 +89,7 @@ local function zoneGroupKey(zone)
     return key
 end
 
--- The zone group key of a pen. The History (F3) finds the pen from a point on the server; a
+-- The zone group key of a pen. The History finds the pen from a point on the server; a
 -- zone key from the client is never trusted.
 function Server.penKey(zone)
     return zoneGroupKey(zone)
@@ -101,7 +110,7 @@ local function zoneKeyOf(animal)
     return zoneGroupKey(zone)
 end
 
--- ------------------------------------------------------------------ animals nobody owns (F5)
+-- ------------------------------------------------------------------ animals nobody owns
 local UNCLAIMED_ID_KEY = Core.UNCLAIMED_ID_KEY
 local unclaimedStamps = 0
 
@@ -112,20 +121,26 @@ local function isClaimed(aid)
     return source ~= nil and source.isClaimed(aid) == true
 end
 
+-- The claim id the animal carries, from the source; nil with no source.
+local function claimIdOf(animal)
+    local source = API.source()
+    return source and source.animalId(animal)
+end
+
 local function isClaimedAnimal(animal)
-    local aid = animal:getModData().GENZ_AID
+    local aid = claimIdOf(animal)
     return aid ~= nil and isClaimed(aid)
 end
 
--- The id an animal nobody owns is filed under, or nil (decision D27). One that had an owner
--- keeps its GENZ_AID, so its history goes on in the same bucket. One that never had an owner
--- gets an id of this mod, stamped only when it is in a pen, only on the server, never sent.
--- GENZ_AID itself is NEVER written here: the claim vigia re-attaches exactly the animals that
--- have none, and stamping a claimed animal that just lost its id in someone's arms would cost
--- its owner the claim.
+-- The id an animal nobody owns is filed under, or nil. One that had an owner keeps its claim
+-- id, so its history goes on in the same bucket. One that never had an owner gets an id of
+-- this mod, stamped only when it is in a pen, only on the server, never sent.
+-- The claim id itself is NEVER written here: a claim system may re-attach exactly the animals
+-- that have none, and stamping a claimed animal that just lost its id in someone's arms would
+-- cost its owner the claim.
 local function unclaimedId(animal, inPen)
     local modData = animal:getModData()
-    local id = modData.GENZ_AID or modData[UNCLAIMED_ID_KEY] or modData[Core.LEGACY_UNCLAIMED_ID_KEY]
+    local id = claimIdOf(animal) or modData[UNCLAIMED_ID_KEY]
     if id or not inPen then return id end
     unclaimedStamps = unclaimedStamps + 1
     id = "w" .. tostring(getTimestamp()) .. "_" .. tostring(unclaimedStamps)
@@ -170,7 +185,7 @@ local function logEvent(aid, kind, record, opts)
     print(LOG_TAG .. Core.consoleLine(aid, entry))
 end
 
--- The id the claim source gives the player (on our server, the SteamID). It can be nil:
+-- The id the claim source gives the player (typically the SteamID). It can be nil:
 -- no source, or a player the server never matched; the name is always there, so the entry
 -- still says who it was.
 function Server.playerId(player)
@@ -194,20 +209,18 @@ local KILL_ACTIONS = { ISKillAnimal = true, ISKillAnimalInInventory = true }
 
 local handlers = {}
 
--- Claimed after being followed with no owner: that history joins the claim's (D27). The
--- stamp goes, so the animal is filed under its GENZ_AID from now on.
+-- Claimed after being followed with no owner: that history joins the claim's. The stamp
+-- goes, so the animal is filed under its claim id from now on.
 local function adoptUnclaimedHistory(data)
     local modData = data.animal:getModData()
-    -- the new mark, or the one saves from before the rename carry
-    local markKey = modData[UNCLAIMED_ID_KEY] and UNCLAIMED_ID_KEY or Core.LEGACY_UNCLAIMED_ID_KEY
-    local unclaimed = modData[markKey]
+    local unclaimed = modData[UNCLAIMED_ID_KEY]
     if not unclaimed then return end
-    modData[markKey] = nil
+    modData[UNCLAIMED_ID_KEY] = nil
     Core.merge(store, unclaimed, data.aid)
 end
 
 -- The claim is the first sighting: it sets the zone baseline, so the entry is filed under
--- the zone the animal was claimed in. A staff transfer (card #210) may come with no animal
+-- the zone the animal was claimed in. A staff transfer may come with no animal
 -- (it can be far away): no baseline then, and the entry goes where the claim store last saw it.
 function handlers.claimed(data)
     if data.animal then
@@ -222,7 +235,7 @@ function handlers.claimed(data)
 end
 
 -- The owner giving or taking access: who can now touch the animal is part of its story.
--- Staff clearing the public flags (card #210) comes here too, with the flags that were on
+-- Staff clearing the public flags comes here too, with the flags that were on
 -- and the staff reason.
 function handlers.permission(data)
     local cleared = data.flags and table.concat(data.flags, ",") or nil
@@ -247,7 +260,7 @@ function handlers.downed(data)
     })
 end
 
--- A staff release or transfer (card #210) names the staff member and their reason.
+-- A staff release or transfer names the staff member and their reason.
 function handlers.released(data)
     logEvent(data.aid, "RELEASED", data.record, {
         actor = data.actor and actorOf(data.actor),
@@ -316,7 +329,7 @@ function handlers.handled(data)
     })
 end
 
--- Every rename is news, the owner's too (D24); a refused attempt is logged once a minute
+-- Every rename is news, the owner's too; a refused attempt is logged once a minute
 -- per person, since the button can be pressed again and again.
 function handlers.renamed(data)
     local actor = actorOf(data.actor)
@@ -386,7 +399,7 @@ function handlers.observed(data)
     end
 end
 
--- What is kept of an animal nobody owns (D25): only inside a pen, and of the handling only
+-- What is kept of an animal nobody owns: only inside a pen, and of the handling only
 -- what moves it (it explains a LEFT_ZONE) or kills it -- anyone petting or feeding a
 -- stray is not news.
 local UNCLAIMED_KINDS = { attacked = true, handled = true, died = true, renamed = true }
@@ -420,7 +433,7 @@ end
 API.setRecorder(onAnimalEvent)
 
 -- The claim sweep visits claimed animals only; one nobody owns is followed here, once a
--- minute, while it is in a pen or has a bucket from before (D25, D28). One that was never in
+-- minute, while it is in a pen or has a bucket from before. One that was never in
 -- a pen is not stamped, not stored, not followed. Needs count only inside a pen.
 local function observeUnclaimed(animal)
     if animal:isDead() or isClaimedAnimal(animal) then return end

@@ -1,10 +1,10 @@
--- LivestockAuditClaimsCore -- pure rules of the staff "Animal Claims" window (card #210).
+-- LivestockAuditClaimsCore -- pure rules of the staff "Animal Claims" window.
 --
 -- The window lists every animal claim: whose it is, what it lets everyone do, who the owner
 -- let in, when the animal was last seen and when the claim would expire. The claim store
 -- belongs to whoever registered the claim source (LivestockAuditApi: source.claims()); the server file reads it
 -- and hands the tables over, and everything here works on plain tables -- the whole rule
--- set runs in the lupa bench (scripts/testar_claims_staff.py) without a game.
+-- set runs in a plain Lua bench without a game.
 
 LivestockAuditClaimsCore = {}
 local Claims = LivestockAuditClaimsCore
@@ -14,16 +14,16 @@ Claims.DAY_SECONDS = 86400
 -- The "not seen for" steps the window offers and the summary counts.
 Claims.WEEK_DAYS = 7
 Claims.MONTH_DAYS = 30
--- A staff reason is refused below this many characters. GENZ_AnimalManagerServer refuses
--- it again with the same number (STAFF_NOTE_MIN); this one only keeps OK disabled.
+-- A staff reason is refused below this many characters. The claim server is expected to
+-- refuse it again; this one only keeps OK disabled.
 Claims.REASON_MIN = 3
 
 local function byName(a, b)
     return string.lower(a.name) < string.lower(b.name)
 end
 
--- The flags of `perms` that are on, in the order of `flags` (source.permissionFlags(), the order
--- of the F5 tab), so two rows read alike.
+-- The flags of `perms` that are on, in the order of `flags` (source.permissionFlags()), so
+-- two rows read alike.
 local function flagsOn(perms, flags)
     local on = {}
     if not perms then return on end
@@ -34,7 +34,7 @@ local function flagsOn(perms, flags)
 end
 
 -- Seconds from `now` until the claim expires: the owner's last login + ClaimTimeout. nil when
--- it never expires (ClaimTimeout <= 0, card #209) or the owner has no login recorded.
+-- it never expires (ClaimTimeout <= 0) or the owner has no login recorded.
 -- Negative = overdue (the hourly expiry has not run yet).
 function Claims.expiresIn(lastLogon, timeoutHours, now)
     if not lastLogon or not timeoutHours or timeoutHours <= 0 then return nil end
@@ -53,7 +53,7 @@ function Claims.row(aid, rec, owner, opts)
         aid = aid,
         owner = rec.owner,
         ownerName = tostring(rec.ownerName or rec.owner),
-        kind = (rec.kind == "cao") and "cao" or "fazenda",
+        kind = (rec.kind == "dog") and "dog" or "farm",
         type = rec.type, breed = rec.breed, name = rec.name, female = rec.female,
         x = rec.x or 0, y = rec.y or 0, z = rec.z or 0,
         claimTime = rec.claimTime,
@@ -80,8 +80,8 @@ function Claims.rows(records, owners, opts)
     return rows
 end
 
--- Not seen for at least `days`; a claim with no sighting counts. The server repeats it
--- before releasing a ghost (GENZ_AnimalManagerServer, isStillGhost).
+-- Not seen for at least `days`; a claim with no sighting counts. The claim server should
+-- check it again before releasing a ghost.
 function Claims.isUnseen(row, days, now)
     return (row.seenAt or 0) <= now - days * Claims.DAY_SECONDS
 end
@@ -100,7 +100,7 @@ local function positive(value)
 end
 
 -- What a client sent, kept only where it makes sense; anything else means "no filter".
--- filter = { owner = sid, type = animal type, kind = "fazenda" | "cao",
+-- filter = { owner = sid, type = animal type, kind = "farm" | "dog",
 --            public = "open" (any flag on) | "pickup" (AllowPickup on),
 --            unseenDays = n, expiresDays = n }
 function Claims.readFilter(raw)
@@ -108,7 +108,7 @@ function Claims.readFilter(raw)
     return {
         owner = type(raw.owner) == "string" and raw.owner or nil,
         type = type(raw.type) == "string" and raw.type or nil,
-        kind = (raw.kind == "fazenda" or raw.kind == "cao") and raw.kind or nil,
+        kind = (raw.kind == "farm" or raw.kind == "dog") and raw.kind or nil,
         public = (raw.public == "open" or raw.public == "pickup") and raw.public or nil,
         unseenDays = positive(raw.unseenDays),
         expiresDays = positive(raw.expiresDays),
@@ -144,7 +144,7 @@ function Claims.summary(rows, now, slotsOf)
                 unseenWeek = 0, unseenMonth = 0, slotsUsed = 0, slotsTotal = 0, slotsBought = 0 }
     local counted = {}
     for _, row in ipairs(rows) do
-        if row.kind == "cao" then s.dog = s.dog + 1 else s.farm = s.farm + 1 end
+        if row.kind == "dog" then s.dog = s.dog + 1 else s.farm = s.farm + 1 end
         if #row.publicOn > 0 then s.publicOpen = s.publicOpen + 1 end
         if hasFlag(row.publicOn, "AllowPickup") then s.publicPickup = s.publicPickup + 1 end
         if Claims.isUnseen(row, Claims.WEEK_DAYS, now) then s.unseenWeek = s.unseenWeek + 1 end

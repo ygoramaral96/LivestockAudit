@@ -15,14 +15,19 @@ window, at the detail their Animal Care level allows. Changes nothing on its own
 
 ## For claim mods: the API
 
-The mod does not own claims, it audits the ones a claim system has. Two calls, in
+The mod does not own claims, it audits the ones a claim system has. Three calls, in
 `LivestockAuditApi.lua`:
 
 - `LivestockAudit.record(kind, data)` (server): the claim system announces what happened
   (`claimed`, `released`, `permission`, `died`, `attacked`, `handled`, `renamed`...).
 - `LivestockAudit.registerSource(src)`: the claim system answers the audit's questions
-  (`isClaimed`, `claims`, `slots`, `timeoutHours`, `permissionFlags`, `isLoaded`, `playerId`; on the
-  client, `claimOf`). An incomplete source is refused at registration, saying what is missing.
+  (`playerId`, `animalId`, `isClaimed`, `claims`, `slots`, `timeoutHours`, `permissionFlags`,
+  `isLoaded`; on the client, `claimOf` and, optionally, `actionModule`: the network module of the
+  claim server that takes the staff actions of the claims window). An incomplete source is refused
+  at registration, saying what is missing.
+- `LivestockAudit.migrateHistory(opts)` (server, `OnInitGlobalModData`): a claim mod hands over a
+  history it kept under another ModData key, and renames words already stored to the ones this mod
+  reads.
 
 Register on `OnGameBoot` (server) and `OnGameStart` (client): then the order of the two mods in
 `Mods=` does not matter. The full contract is the header of `LivestockAuditApi.lua`.
