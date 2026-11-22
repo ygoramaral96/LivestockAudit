@@ -1,13 +1,13 @@
--- GENZ_LivestockAuditClaimsCore -- pure rules of the staff "Animal Claims" window (card #210).
+-- LivestockAuditClaimsCore -- pure rules of the staff "Animal Claims" window (card #210).
 --
 -- The window lists every animal claim: whose it is, what it lets everyone do, who the owner
 -- let in, when the animal was last seen and when the claim would expire. The claim store
--- belongs to whoever registered the claim source (GENZ_LivestockAuditApi: source.claims()); the server file reads it
+-- belongs to whoever registered the claim source (LivestockAuditApi: source.claims()); the server file reads it
 -- and hands the tables over, and everything here works on plain tables -- the whole rule
 -- set runs in the lupa bench (scripts/testar_claims_staff.py) without a game.
 
-GENZ_LivestockAuditClaimsCore = {}
-local Claims = GENZ_LivestockAuditClaimsCore
+LivestockAuditClaimsCore = {}
+local Claims = LivestockAuditClaimsCore
 
 Claims.PAGE_SIZE = 50
 Claims.DAY_SECONDS = 86400
@@ -66,7 +66,7 @@ function Claims.row(aid, rec, owner, opts)
 end
 
 -- Every claim as a row, by owner name then id. records, owners = source.claims()
--- (GENZ_LivestockAuditApi).
+-- (LivestockAuditApi).
 function Claims.rows(records, owners, opts)
     local rows = {}
     for aid, rec in pairs(records) do
@@ -207,13 +207,13 @@ function Claims.isReason(text)
     return #(text:match("^%s*(.-)%s*$")) >= Claims.REASON_MIN
 end
 
--- "Expires" as a translation key and its argument, like GENZ_LivestockAuditCore.ago.
+-- "Expires" as a translation key and its argument, like LivestockAuditCore.ago.
 function Claims.expiry(expiresIn, timeoutHours)
-    if timeoutHours == nil or timeoutHours <= 0 then return "UI_GENZ_LA_ExpiresNever", {} end
-    if expiresIn == nil then return "UI_GENZ_LA_ExpiresUnknown", {} end
-    if expiresIn <= 0 then return "UI_GENZ_LA_ExpiresOverdue", {} end
+    if timeoutHours == nil or timeoutHours <= 0 then return "UI_LivestockAudit_ExpiresNever", {} end
+    if expiresIn == nil then return "UI_LivestockAudit_ExpiresUnknown", {} end
+    if expiresIn <= 0 then return "UI_LivestockAudit_ExpiresOverdue", {} end
     if expiresIn < Claims.DAY_SECONDS then
-        return "UI_GENZ_LA_ExpiresHours", { tostring(math.floor(expiresIn / 3600)) }
+        return "UI_LivestockAudit_ExpiresHours", { tostring(math.floor(expiresIn / 3600)) }
     end
-    return "UI_GENZ_LA_ExpiresDays", { tostring(math.floor(expiresIn / Claims.DAY_SECONDS)) }
+    return "UI_LivestockAudit_ExpiresDays", { tostring(math.floor(expiresIn / Claims.DAY_SECONDS)) }
 end

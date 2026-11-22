@@ -1,23 +1,23 @@
--- GENZ_LivestockAuditAdminPanel -- "Animal Events" in the vanilla Admin Panel (card #192, F2).
+-- LivestockAuditAdminPanel -- "Animal Events" in the vanilla Admin Panel (card #192, F2).
 --
 -- A button that takes its place among the vanilla ones, and a window in the style of the
 -- vanilla PVP Log Tool (ISPVPLogToolUI): owner and kind filters, a page of events, teleport
 -- to where one happened. The rows come from the server one page at a time; this file never
 -- sees the store. The button is enabled only for AnswerTickets, and the server checks the
--- role again before answering (GENZ_LivestockAuditQuery).
+-- role again before answering (LivestockAuditQuery).
 
 require "ISUI/ISPanel"
 require "ISUI/ISButton"
 require "ISUI/ISComboBox"
 require "ISUI/ISScrollingListBox"
 require "ISUI/AdminPanel/ISAdminPanelUI"
-require "GENZ_LivestockAudit/GENZ_LivestockAuditCore"
-require "GENZ_LivestockAudit/GENZ_LivestockAuditText"
+require "LivestockAudit/LivestockAuditCore"
+require "LivestockAudit/LivestockAuditText"
 
-local Core = GENZ_LivestockAuditCore
-local Text = GENZ_LivestockAuditText
+local Core = LivestockAuditCore
+local Text = LivestockAuditText
 
-local NET = "GENZ_LivestockAudit"
+local NET = "LivestockAudit"
 local FONT_HGT_SMALL = getTextManager():getFontHeight(UIFont.Small)
 local FONT_HGT_MEDIUM = getTextManager():getFontHeight(UIFont.Medium)
 local PAD = 10
@@ -37,8 +37,8 @@ local function canSeeAnimalEvents()
 end
 
 -- ------------------------------------------------------------------ the window
-GENZ_LivestockAuditAdminWindow = ISPanel:derive("GENZ_LivestockAuditAdminWindow")
-local Window = GENZ_LivestockAuditAdminWindow
+LivestockAuditAdminWindow = ISPanel:derive("LivestockAuditAdminWindow")
+local Window = LivestockAuditAdminWindow
 
 -- animal (optional, card #210) = { aid, label }: opened from the "Animal Claims" window, the
 -- list shows that one animal's events.
@@ -76,17 +76,17 @@ function Window:initialise()
     self.ownerCombo = ISComboBox:new(PAD, top, 280, BUTTON_HGT, self, Window.onFilterChanged)
     self.ownerCombo:initialise()
     self:addChild(self.ownerCombo)
-    self.ownerCombo:addOptionWithData(getText("UI_GENZ_LA_AllOwners"), "")
+    self.ownerCombo:addOptionWithData(getText("UI_LivestockAudit_AllOwners"), "")
 
     self.kindCombo = ISComboBox:new(self.ownerCombo:getRight() + PAD, top, 220, BUTTON_HGT, self, Window.onFilterChanged)
     self.kindCombo:initialise()
     self:addChild(self.kindCombo)
-    self.kindCombo:addOptionWithData(getText("UI_GENZ_LA_AllKinds"), "")
+    self.kindCombo:addOptionWithData(getText("UI_LivestockAudit_AllKinds"), "")
     for _, kind in ipairs(Core.KINDS) do
-        self.kindCombo:addOptionWithData(getText("UI_GENZ_LA_KindName_" .. kind), kind)
+        self.kindCombo:addOptionWithData(getText("UI_LivestockAudit_KindName_" .. kind), kind)
     end
 
-    self.refreshButton = addButton(self, self.kindCombo:getRight() + PAD, top, 120, getText("UI_GENZ_LA_Refresh"), "REFRESH")
+    self.refreshButton = addButton(self, self.kindCombo:getRight() + PAD, top, 120, getText("UI_LivestockAudit_Refresh"), "REFRESH")
 
     local listTop = top + BUTTON_HGT + PAD
     local bottomY = self.height - PAD - BUTTON_HGT
@@ -99,11 +99,11 @@ function Window:initialise()
     self.list.doDrawItem = Window.drawRow
     self:addChild(self.list)
 
-    self.closeButton = addButton(self, PAD, bottomY, 120, getText("UI_GENZ_LA_Close"), "CLOSE")
+    self.closeButton = addButton(self, PAD, bottomY, 120, getText("UI_LivestockAudit_Close"), "CLOSE")
     self.closeButton:enableCancelColor()
-    self.previousButton = addButton(self, self.width / 2 - 250, bottomY, 120, getText("UI_GENZ_LA_Previous"), "PREVIOUS")
-    self.nextButton = addButton(self, self.width / 2 + 130, bottomY, 120, getText("UI_GENZ_LA_Next"), "NEXT")
-    self.teleportButton = addButton(self, self.width - PAD - 120, bottomY, 120, getText("UI_GENZ_LA_Teleport"), "TELEPORT")
+    self.previousButton = addButton(self, self.width / 2 - 250, bottomY, 120, getText("UI_LivestockAudit_Previous"), "PREVIOUS")
+    self.nextButton = addButton(self, self.width / 2 + 130, bottomY, 120, getText("UI_LivestockAudit_Next"), "NEXT")
+    self.teleportButton = addButton(self, self.width - PAD - 120, bottomY, 120, getText("UI_LivestockAudit_Teleport"), "TELEPORT")
     self.teleportButton:setVisible(false)
 
     self:request(1)
@@ -132,10 +132,10 @@ end
 -- The owner list comes with every page (owners appear as events do); the choice survives.
 function Window:fillOwners(owners)
     self.ownerCombo:clear()
-    self.ownerCombo:addOptionWithData(getText("UI_GENZ_LA_AllOwners"), "")
-    self.ownerCombo:addOptionWithData(getText("UI_GENZ_LA_UnownedFilter"), Core.UNOWNED)
+    self.ownerCombo:addOptionWithData(getText("UI_LivestockAudit_AllOwners"), "")
+    self.ownerCombo:addOptionWithData(getText("UI_LivestockAudit_UnownedFilter"), Core.UNOWNED)
     for _, owner in ipairs(owners) do
-        self.ownerCombo:addOptionWithData(getText("UI_GENZ_LA_OwnerCount", owner.name, tostring(owner.count)), owner.sid)
+        self.ownerCombo:addOptionWithData(getText("UI_LivestockAudit_OwnerCount", owner.name, tostring(owner.count)), owner.sid)
     end
     self.ownerCombo:selectData(self.filterOwner or "")
 end
@@ -168,7 +168,7 @@ function Window.drawRow(list, y, row, alt)
     list:drawText(Text.when(item.ts), PAD, textY, 0.7, 0.7, 0.7, 1, UIFont.Small)
     list:drawText(tostring(item.x) .. "," .. tostring(item.y), COL_WHERE, textY, 0.7, 0.7, 0.7, 1, UIFont.Small)
     list:drawText(Text.animal(item), COL_ANIMAL, textY, 1, 1, 1, 1, UIFont.Small)
-    local owner = item.owner and getText("UI_GENZ_LA_OwnerOf", tostring(item.ownerName)) or getText("UI_GENZ_LA_Unowned")
+    local owner = item.owner and getText("UI_LivestockAudit_OwnerOf", tostring(item.ownerName)) or getText("UI_LivestockAudit_Unowned")
     list:drawText(owner, COL_OWNER, textY, 0.8, 0.8, 0.8, 1, UIFont.Small)
     list:drawText(row.text, COL_EVENT, textY, 1, 1, 1, 1, UIFont.Small)
     return y + list.itemheight
@@ -176,15 +176,15 @@ end
 
 function Window:prerender()
     ISPanel.prerender(self)
-    local title = self.animal and getText("UI_GENZ_LA_AdminTitleAnimal", self.animal.label) or getText("UI_GENZ_LA_AdminTitle")
+    local title = self.animal and getText("UI_LivestockAudit_AdminTitleAnimal", self.animal.label) or getText("UI_LivestockAudit_AdminTitle")
     self:drawText(title, self.width / 2 - getTextManager():MeasureStringX(UIFont.Medium, title) / 2, PAD, 1, 1, 1, 1, UIFont.Medium)
     local status
     if self.isLoading then
-        status = getText("UI_GENZ_LA_Loading")
+        status = getText("UI_LivestockAudit_Loading")
     elseif self.total == 0 then
-        status = getText("UI_GENZ_LA_Empty")
+        status = getText("UI_LivestockAudit_Empty")
     else
-        status = getText("UI_GENZ_LA_PageOf", tostring(self.page), tostring(self.pages), tostring(self.total))
+        status = getText("UI_LivestockAudit_PageOf", tostring(self.page), tostring(self.pages), tostring(self.total))
     end
     local statusY = self.previousButton:getY() + 3
     self:drawText(status, self.width / 2 - getTextManager():MeasureStringX(UIFont.Small, status) / 2, statusY, 0.9, 0.9, 0.9, 1, UIFont.Small)
@@ -244,19 +244,19 @@ function Window.addAdminButton(button)
 end
 
 Window.addAdminButton({
-    title = "UI_GENZ_LA_AdminButton", tooltip = "UI_GENZ_LA_AdminButtonTooltip",
+    title = "UI_LivestockAudit_AdminButton", tooltip = "UI_LivestockAudit_AdminButtonTooltip",
     open = function() Window.open(nil) end, canUse = canSeeAnimalEvents,
 })
 
 -- ISAdminPanelUI:create() builds its buttons, then sorts EVERY child by title into two
 -- columns (ISAdminPanelUI.lua:163-177). A button added before the original runs is laid out
 -- by that same loop, in alphabetical order, without touching the vanilla layout.
-if not ISAdminPanelUI.genzLivestockAuditPatched then
-    ISAdminPanelUI.genzLivestockAuditPatched = true
+if not ISAdminPanelUI.livestockAuditPatched then
+    ISAdminPanelUI.livestockAuditPatched = true
 
     local originalCreate = ISAdminPanelUI.create
     function ISAdminPanelUI:create()
-        self.genzLivestockAuditButtons = {}
+        self.livestockAuditButtons = {}
         for _, spec in ipairs(adminButtons) do
             local button = ISButton:new(0, 0, 200, BUTTON_HGT, getText(spec.title), self, spec.open)
             button:initialise()
@@ -264,7 +264,7 @@ if not ISAdminPanelUI.genzLivestockAuditPatched then
             button.borderColor = self.buttonBorderColor
             button.tooltip = getText(spec.tooltip)
             self:addChild(button)
-            table.insert(self.genzLivestockAuditButtons, { button = button, canUse = spec.canUse })
+            table.insert(self.livestockAuditButtons, { button = button, canUse = spec.canUse })
         end
         originalCreate(self)
     end
@@ -274,8 +274,8 @@ if not ISAdminPanelUI.genzLivestockAuditPatched then
     function ISAdminPanelUI:updateButtons()
         originalUpdateButtons(self)
         local player = getPlayer()
-        if not (self.genzLivestockAuditButtons and player and player:getRole()) then return end
-        for _, added in ipairs(self.genzLivestockAuditButtons) do
+        if not (self.livestockAuditButtons and player and player:getRole()) then return end
+        for _, added in ipairs(self.livestockAuditButtons) do
             added.button.enable = added.canUse()
         end
     end

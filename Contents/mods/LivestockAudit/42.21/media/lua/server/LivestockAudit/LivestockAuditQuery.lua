@@ -1,4 +1,4 @@
--- GENZ_LivestockAuditQuery -- answers the staff list (F2), the owner History (F3) and the
+-- LivestockAuditQuery -- answers the staff list (F2), the owner History (F3) and the
 -- staff "Animal Claims" list (card #210).
 --
 -- Every answer is cut here, on the server: a client never receives the store, only the
@@ -8,18 +8,18 @@
 
 if isClient() and not isServer() then return end
 
-require "GENZ_LivestockAudit/GENZ_LivestockAuditCore"
-require "GENZ_LivestockAudit/GENZ_LivestockAuditClaimsCore"
-require "GENZ_LivestockAudit/GENZ_LivestockAuditServer"
-require "GENZ_LivestockAudit/GENZ_LivestockAuditApi"
+require "LivestockAudit/LivestockAuditCore"
+require "LivestockAudit/LivestockAuditClaimsCore"
+require "LivestockAudit/LivestockAuditServer"
+require "LivestockAudit/LivestockAuditApi"
 
-local Core = GENZ_LivestockAuditCore
-local Claims = GENZ_LivestockAuditClaimsCore
-local Server = GENZ_LivestockAuditServer
-local API = GENZ_LivestockAudit
+local Core = LivestockAuditCore
+local Claims = LivestockAuditClaimsCore
+local Server = LivestockAuditServer
+local API = LivestockAudit
 
-local NET = "GENZ_LivestockAudit"
-local LOG_TAG = "[GENZ_LivestockAudit] "
+local NET = "LivestockAudit"
+local LOG_TAG = "[LivestockAudit] "
 -- A page click or a History button pressed twice is fine; a client flooding the command is not.
 local REQUEST_COOLDOWN_MS = 500
 

@@ -1,8 +1,8 @@
--- GENZ_LivestockAuditDots -- the vanilla Check Zone list, extended (card #192 F4, card #201):
+-- LivestockAuditDots -- the vanilla Check Zone list, extended (card #192 F4, card #201):
 -- status cells per animal in four tabs (care, harvest, breeding, profile), the species icon,
 -- the name colored by sex, an Animal Care bar and a header row.
 --
--- WHAT EACH CELL SAYS comes from GENZ_LivestockAuditReadings: the text the vanilla Animal
+-- WHAT EACH CELL SAYS comes from LivestockAuditReadings: the text the vanilla Animal
 -- Info panel shows at the viewer's level, as a color or a short text (decision D8). This
 -- file only draws.
 --
@@ -16,9 +16,9 @@
 
 require "ISUI/Animal/ISDesignationAnimalZoneUI"
 require "ISUI/ISButton"
-require "GENZ_LivestockAudit/GENZ_LivestockAuditReadings"
+require "LivestockAudit/LivestockAuditReadings"
 
-local Readings = GENZ_LivestockAuditReadings
+local Readings = LivestockAuditReadings
 
 local FONT_HGT_SMALL = getTextManager():getFontHeight(UIFont.Small)
 local FONT_HGT_NEW_SMALL = getTextManager():getFontHeight(UIFont.NewSmall)   -- the font of vanilla's "Animals: N" line
@@ -45,14 +45,14 @@ local DOT_TEXTURE = getTexture("media/ui/circle.png")
 local ELLIPSIS = "..."
 
 -- The chosen tab is remembered between windows, like vanilla's "Show zone" tick.
-ISDesignationZoneAnimalZoneUI.genzLivestockTab = ISDesignationZoneAnimalZoneUI.genzLivestockTab or Readings.TABS[1].key
+ISDesignationZoneAnimalZoneUI.livestockAuditTab = ISDesignationZoneAnimalZoneUI.livestockAuditTab or Readings.TABS[1].key
 
 local function measure(text)
     return getTextManager():MeasureStringX(UIFont.Small, text)
 end
 
 local function currentTab()
-    return Readings.tab(ISDesignationZoneAnimalZoneUI.genzLivestockTab)
+    return Readings.tab(ISDesignationZoneAnimalZoneUI.livestockAuditTab)
 end
 
 local function levelOf(panel)
@@ -139,7 +139,7 @@ end
 -- Rows are as vanilla lays them: row i spans (i-1)*itemHgt to i*itemHgt, the same arithmetic
 -- vanilla uses to find the row under the mouse (AnimalsPanel:highlightAnimal).
 local function drawRows(panel)
-    panel.genzLivestockHover = nil
+    panel.livestockAuditHover = nil
     local level = levelOf(panel)
     local columns = layoutOf(panel, level, currentTab())
     if not columns then return end
@@ -160,7 +160,7 @@ local function drawRows(panel)
                         drawDot(panel, column, centerY, cell.color)
                     end
                     if hoverRow == index and mouseX >= column.x and mouseX < column.x + column.width + COLUMN_GAP then
-                        panel.genzLivestockHover = { text = cell.text, x = mouseX, y = panel:getMouseY() }
+                        panel.livestockAuditHover = { text = cell.text, x = mouseX, y = panel:getMouseY() }
                     end
                 end
             end
@@ -169,7 +169,7 @@ local function drawRows(panel)
 end
 
 local function drawHover(panel)
-    local hover = panel.genzLivestockHover
+    local hover = panel.livestockAuditHover
     if not hover then return end
     local width = measure(hover.text) + 8
     local x, y = hover.x + 14, hover.y + 14
@@ -210,8 +210,8 @@ end
 
 -- ------------------------------------------------------------------ tabs
 local function selectTab(zoneWindow, key)
-    ISDesignationZoneAnimalZoneUI.genzLivestockTab = key
-    for _, button in ipairs(zoneWindow.genzLivestockTabButtons) do
+    ISDesignationZoneAnimalZoneUI.livestockAuditTab = key
+    for _, button in ipairs(zoneWindow.livestockAuditTabButtons) do
         local selected = button.internal == key
         button.backgroundColor = { r = 0.25, g = 0.25, b = 0.25, a = selected and 1 or 0.4 }
         button.borderColor = { r = 1, g = 1, b = 1, a = selected and 0.5 or 0.1 }
@@ -227,7 +227,7 @@ end
 local function addTabs(zoneWindow, lineY)
     local height = FONT_HGT_SMALL + 4
     local x = zoneWindow.width - 10
-    zoneWindow.genzLivestockTabButtons = {}
+    zoneWindow.livestockAuditTabButtons = {}
     for i = #Readings.TABS, 1, -1 do
         local tab = Readings.TABS[i]
         local title = getText(tab.label)
@@ -238,15 +238,15 @@ local function addTabs(zoneWindow, lineY)
         button:initialise()
         button:instantiate()
         zoneWindow:addChild(button)
-        table.insert(zoneWindow.genzLivestockTabButtons, 1, button)
+        table.insert(zoneWindow.livestockAuditTabButtons, 1, button)
         x = x - TAB_GAP
     end
-    selectTab(zoneWindow, ISDesignationZoneAnimalZoneUI.genzLivestockTab)
+    selectTab(zoneWindow, ISDesignationZoneAnimalZoneUI.livestockAuditTab)
 end
 
 local AnimalsPanel = ISDesignationZoneAnimalZoneUI_AnimalsPanel
-if not AnimalsPanel.genzLivestockAuditPatched then
-    AnimalsPanel.genzLivestockAuditPatched = true
+if not AnimalsPanel.livestockAuditPatched then
+    AnimalsPanel.livestockAuditPatched = true
 
     -- The original prerender opens the list's clipping and leaves it open (render closes it):
     -- cells drawn here are cut to the list like the vanilla rows.

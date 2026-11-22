@@ -1,4 +1,4 @@
--- GENZ_LivestockAuditReadings -- what the vanilla Animal Info panel would say about an animal
+-- LivestockAuditReadings -- what the vanilla Animal Info panel would say about an animal
 -- at the viewer's Animal Care level, as cells the Check Zone list draws (card #192 F4, card #201).
 --
 -- THE GATE IS VANILLA ITSELF (decision D8). Each cell is the text the vanilla panel shows at
@@ -10,17 +10,17 @@
 --
 -- A dot cell is { color, text }; a text cell is { text } and is written in the column. No
 -- cell (nil) means the panel would not show that line for this animal at this level.
--- Nothing here draws: GENZ_LivestockAuditDots does. scripts/testar_livestock_readings.py
+-- Nothing here draws: LivestockAuditDots does. scripts/testar_livestock_readings.py
 -- runs this file against the REAL vanilla ISAnimalUI.lua, without a game.
 
 require "ISUI/Animal/ISAnimalUI"
 require "XpSystem/ISUI/ISSkillProgressBar"
-require "GENZ_LivestockAudit/GENZ_LivestockAuditApi"
+require "LivestockAudit/LivestockAuditApi"
 
-GENZ_LivestockAuditReadings = {}
-local Readings = GENZ_LivestockAuditReadings
+LivestockAuditReadings = {}
+local Readings = LivestockAuditReadings
 
-local LOG_TAG = "[GENZ_LivestockAudit] "
+local LOG_TAG = "[LivestockAudit] "
 
 local GREEN, YELLOW, ORANGE, RED = { 0.35, 0.75, 0.35 }, { 0.9, 0.8, 0.3 }, { 0.95, 0.55, 0.2 }, { 0.9, 0.25, 0.25 }
 local CYAN, GRAY = { 0.35, 0.75, 0.95 }, { 0.5, 0.5, 0.5 }
@@ -37,32 +37,32 @@ local TOP_LEVEL = 10
 -- The tabs of the list and their columns, in order. A column with `text` is written, the
 -- others are dots; `minLevel` hides the column, header included, below that level.
 Readings.TABS = {
-    { key = "care", label = "UI_GENZ_LA_TabCare", columns = {
+    { key = "care", label = "UI_LivestockAudit_TabCare", columns = {
         { key = "claim" },
-        { key = "hunger", label = "UI_GENZ_LA_ColHunger" },
-        { key = "thirst", label = "UI_GENZ_LA_ColThirst" },
-        { key = "health", label = "UI_GENZ_LA_ColHealth" },
-        { key = "mood", label = "UI_GENZ_LA_ColMood" },
-        { key = "alert", label = "UI_GENZ_LA_ColAlert" },
+        { key = "hunger", label = "UI_LivestockAudit_ColHunger" },
+        { key = "thirst", label = "UI_LivestockAudit_ColThirst" },
+        { key = "health", label = "UI_LivestockAudit_ColHealth" },
+        { key = "mood", label = "UI_LivestockAudit_ColMood" },
+        { key = "alert", label = "UI_LivestockAudit_ColAlert" },
     } },
-    { key = "harvest", label = "UI_GENZ_LA_TabHarvest", columns = {
+    { key = "harvest", label = "UI_LivestockAudit_TabHarvest", columns = {
         { key = "claim" },
-        { key = "milk", label = "UI_GENZ_LA_ColMilk" },
-        { key = "wool", label = "UI_GENZ_LA_ColWool" },
-        { key = "clutch", label = "UI_GENZ_LA_ColClutch", minLevel = LEVEL.clutch },
-        { key = "laying", label = "UI_GENZ_LA_ColLaying", minLevel = LEVEL.laying },
+        { key = "milk", label = "UI_LivestockAudit_ColMilk" },
+        { key = "wool", label = "UI_LivestockAudit_ColWool" },
+        { key = "clutch", label = "UI_LivestockAudit_ColClutch", minLevel = LEVEL.clutch },
+        { key = "laying", label = "UI_LivestockAudit_ColLaying", minLevel = LEVEL.laying },
     } },
-    { key = "breeding", label = "UI_GENZ_LA_TabBreeding", columns = {
+    { key = "breeding", label = "UI_LivestockAudit_TabBreeding", columns = {
         { key = "claim" },
-        { key = "breed", label = "UI_GENZ_LA_ColPregnant", minLevel = LEVEL.breed },
-        { key = "season", label = "UI_GENZ_LA_ColSeason", minLevel = LEVEL.season },
-        { key = "stud", label = "UI_GENZ_LA_ColStud", minLevel = LEVEL.stud },
+        { key = "breed", label = "UI_LivestockAudit_ColPregnant", minLevel = LEVEL.breed },
+        { key = "season", label = "UI_LivestockAudit_ColSeason", minLevel = LEVEL.season },
+        { key = "stud", label = "UI_LivestockAudit_ColStud", minLevel = LEVEL.stud },
     } },
-    { key = "profile", label = "UI_GENZ_LA_TabProfile", columns = {
+    { key = "profile", label = "UI_LivestockAudit_TabProfile", columns = {
         { key = "claim" },
-        { key = "type", label = "UI_GENZ_LA_ColType", text = true, width = 90 },
-        { key = "age", label = "UI_GENZ_LA_ColAge", text = true, width = 110 },
-        { key = "weight", label = "UI_GENZ_LA_ColWeight", text = true, width = 70, minLevel = LEVEL.weight },
+        { key = "type", label = "UI_LivestockAudit_ColType", text = true, width = 90 },
+        { key = "age", label = "UI_LivestockAudit_ColAge", text = true, width = 110 },
+        { key = "weight", label = "UI_LivestockAudit_ColWeight", text = true, width = 70, minLevel = LEVEL.weight },
     } },
 }
 
@@ -125,14 +125,14 @@ end
 -- From the claim source's own client cache (on our server, GENZ_AnimalGuard's; no request of
 -- our own). With no source the cell is left out, as for an animal nobody owns.
 local function claimCell(animal)
-    local source = GENZ_LivestockAudit.source()
+    local source = LivestockAudit.source()
     if not source then return nil end
     local claim = source.claimOf(animal)
     if not claim or not claim.owner then return nil end
     if claim.owner == tostring(getCurrentUserSteamID()) then
-        return { color = MINE, text = getText("UI_GENZ_LA_ClaimMine") }
+        return { color = MINE, text = getText("UI_LivestockAudit_ClaimMine") }
     end
-    return { color = SOMEONE_ELSES, text = getText("UI_GENZ_LA_ClaimOther") }
+    return { color = SOMEONE_ELSES, text = getText("UI_LivestockAudit_ClaimOther") }
 end
 
 -- The panel's two red lines (ISAnimalUI.lua:302, :321), shown to any level.

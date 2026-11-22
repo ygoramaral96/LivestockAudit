@@ -1,4 +1,4 @@
--- GENZ_LivestockAuditCore -- pure rules of the livestock audit (card #192).
+-- LivestockAuditCore -- pure rules of the livestock audit (card #192).
 --
 -- No engine call lives here: every function receives plain values and tables, so the
 -- whole rule set runs in the lupa bench (scripts/testar_livestock_audit.py) without a
@@ -13,8 +13,8 @@
 -- owner -- by the id this mod stamps on it (F5, decision D27). Entries of an animal nobody
 -- owned at the time carry no `owner` and are in no byOwner index.
 
-GENZ_LivestockAuditCore = {}
-local Core = GENZ_LivestockAuditCore
+LivestockAuditCore = {}
+local Core = LivestockAuditCore
 
 Core.MAX_EVENTS_PER_ANIMAL = 150            -- decision D15
 Core.RETENTION_SECONDS = 30 * 24 * 60 * 60  -- D15: unclaimed bucket with no new entry for 30 days is dropped
@@ -43,6 +43,38 @@ local NEEDS = { "hunger", "thirst" }
 
 local function isEmpty(t)
     for _ in pairs(t) do return false end
+    return true
+end
+
+-- Names the audit's data had before the mod was renamed (it shipped as GENZ_LivestockAudit).
+-- The old keys stay readable so a save keeps its history; nothing is ever written to them.
+Core.LEGACY_MODDATA_KEY = "GENZ_LivestockAudit"
+Core.UNCLAIMED_ID_KEY = "LivestockAuditId"
+Core.LEGACY_UNCLAIMED_ID_KEY = "GENZ_LA_ID"
+
+local function deepCopy(value)
+    if type(value) ~= "table" then return value end
+    local copy = {}
+    for k, v in pairs(value) do copy[k] = deepCopy(v) end
+    return copy
+end
+
+-- A store is empty when it has no key, or only the two empty indexes initStore creates.
+local function isEmptyStore(store)
+    for k, v in pairs(store) do
+        if not ((k == "byAnimal" or k == "byOwner") and type(v) == "table" and isEmpty(v)) then
+            return false
+        end
+    end
+    return true
+end
+
+-- First load under the new name: when the new store is still empty and the old one has data,
+-- the old content is COPIED in (deep: later writes never touch the old table, so going back is
+-- doing nothing). Returns true when it copied. Run before initStore.
+function Core.migrateLegacyStore(current, legacy)
+    if type(legacy) ~= "table" or isEmpty(legacy) or not isEmptyStore(current) then return false end
+    for k, v in pairs(legacy) do current[k] = deepCopy(v) end
     return true
 end
 
@@ -409,7 +441,7 @@ end
 -- { key = <translation key> } / { item = <item full type> } for the client to resolve.
 -- A value this version does not know travels as plain text instead of being hidden.
 
-local KEY = "UI_GENZ_LA_"
+local KEY = "UI_LivestockAudit_"
 
 local ORIGINS = {
     manual = "manual", capsule = "capsule", genzball = "genzball", transfer = "transfer", unspecified = "unspecified",

@@ -1,21 +1,21 @@
--- GENZ_LivestockAuditHistory -- the "History" button next to Help in the vanilla Check
+-- LivestockAuditHistory -- the "History" button next to Help in the vanilla Check
 -- Zone window (card #192, F3): what happened in this pen to the asker's claimed animals and
 -- to the animals nobody owns (F5, decision D26).
 --
 -- The window sends one point of the pen; the server finds the pen itself, checks the asker
 -- is near it, keeps the asker's own entries plus the unowned ones and cuts them to the
--- asker's Animal Care level (GENZ_LivestockAuditQuery). Nothing about another owner's
+-- asker's Animal Care level (LivestockAuditQuery). Nothing about another owner's
 -- animals reaches this client.
 
 require "ISUI/ISPanel"
 require "ISUI/ISButton"
 require "ISUI/ISScrollingListBox"
 require "ISUI/Animal/ISDesignationAnimalZoneUI"
-require "GENZ_LivestockAudit/GENZ_LivestockAuditText"
+require "LivestockAudit/LivestockAuditText"
 
-local Text = GENZ_LivestockAuditText
+local Text = LivestockAuditText
 
-local NET = "GENZ_LivestockAudit"
+local NET = "LivestockAudit"
 local FONT_HGT_SMALL = getTextManager():getFontHeight(UIFont.Small)
 local FONT_HGT_MEDIUM = getTextManager():getFontHeight(UIFont.Medium)
 local PAD = 10
@@ -24,8 +24,8 @@ local WINDOW_WIDTH, WINDOW_HEIGHT = 720, 480
 -- column x inside a row: how long ago | animal | what happened
 local COL_ANIMAL, COL_EVENT = 110, 270
 
-GENZ_LivestockAuditHistoryWindow = ISPanel:derive("GENZ_LivestockAuditHistoryWindow")
-local Window = GENZ_LivestockAuditHistoryWindow
+LivestockAuditHistoryWindow = ISPanel:derive("LivestockAuditHistoryWindow")
+local Window = LivestockAuditHistoryWindow
 
 function Window:new(zone)
     local x = getCore():getScreenWidth() / 2 - WINDOW_WIDTH / 2
@@ -56,7 +56,7 @@ function Window:initialise()
     self.list.doDrawItem = Window.drawRow
     self:addChild(self.list)
 
-    self.closeButton = ISButton:new(self.width - PAD - 120, bottomY, 120, BUTTON_HGT, getText("UI_GENZ_LA_Close"), self, Window.close)
+    self.closeButton = ISButton:new(self.width - PAD - 120, bottomY, 120, BUTTON_HGT, getText("UI_LivestockAudit_Close"), self, Window.close)
     self.closeButton:initialise()
     self.closeButton:instantiate()
     self.closeButton:enableCancelColor()
@@ -88,13 +88,13 @@ end
 
 function Window:prerender()
     ISPanel.prerender(self)
-    local title = getText("UI_GENZ_LA_HistoryTitle", self.zone:getName())
+    local title = getText("UI_LivestockAudit_HistoryTitle", self.zone:getName())
     self:drawText(title, self.width / 2 - getTextManager():MeasureStringX(UIFont.Medium, title) / 2, PAD, 1, 1, 1, 1, UIFont.Medium)
-    local hint = getText("UI_GENZ_LA_HistoryHint")
+    local hint = getText("UI_LivestockAudit_HistoryHint")
     if self.isLoading then
-        hint = getText("UI_GENZ_LA_Loading")
+        hint = getText("UI_LivestockAudit_Loading")
     elseif self.itemCount == 0 then
-        hint = getText("UI_GENZ_LA_Empty")
+        hint = getText("UI_LivestockAudit_Empty")
     end
     self:drawText(hint, PAD, FONT_HGT_MEDIUM + PAD * 2, 0.8, 0.8, 0.8, 1, UIFont.Small)
 end
@@ -121,21 +121,21 @@ end
 -- Added AFTER the vanilla initialise, beside Help: Help sits at x 10-110 and the vanilla
 -- "Info" (only shown with a controller) starts at 270 (ISDesignationAnimalZoneUI.lua:212-248),
 -- so 120-220 is free. Nothing vanilla is replaced.
-if not ISDesignationZoneAnimalZoneUI.genzLivestockAuditPatched then
-    ISDesignationZoneAnimalZoneUI.genzLivestockAuditPatched = true
+if not ISDesignationZoneAnimalZoneUI.livestockAuditPatched then
+    ISDesignationZoneAnimalZoneUI.livestockAuditPatched = true
 
     local originalInitialise = ISDesignationZoneAnimalZoneUI.initialise
     function ISDesignationZoneAnimalZoneUI:initialise()
         originalInitialise(self)
         local help = self.infoBtn
         local button = ISButton:new(help:getRight() + PAD, help:getY(), help:getWidth(), help:getHeight(),
-            getText("UI_GENZ_LA_HistoryButton"), self, openHistory)
+            getText("UI_LivestockAudit_HistoryButton"), self, openHistory)
         button.anchorTop = false
         button.anchorBottom = true
         button:initialise()
         button:instantiate()
         button.borderColor = { r = 1, g = 1, b = 1, a = 0.1 }
         self:addChild(button)
-        self.genzLivestockAuditHistoryButton = button
+        self.livestockAuditHistoryButton = button
     end
 end

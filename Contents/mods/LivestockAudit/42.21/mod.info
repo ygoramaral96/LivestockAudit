@@ -1,0 +1,5 @@
+name=Livestock Audit
+id=LivestockAudit
+author=Rougy
+modversion=0.2.0
+description=Audit trail of animals. The server records what happens to each animal - claim, release, death with its cause, pregnancy, birth, growth, critical hunger or thirst, leaving or entering a pen - so staff and owners can read it in game. Standalone: animals nobody owns are followed inside pens with no other mod; claimed animals are audited when a claim system talks to it through LivestockAudit.record and registerSource. Changes nothing on its own.

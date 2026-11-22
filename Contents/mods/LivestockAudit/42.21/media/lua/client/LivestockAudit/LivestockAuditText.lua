@@ -1,14 +1,14 @@
--- GENZ_LivestockAuditText -- turns an audit entry into the words a window shows.
+-- LivestockAuditText -- turns an audit entry into the words a window shows.
 --
--- GENZ_LivestockAuditCore decides WHAT an entry says (a translation key plus arguments,
+-- LivestockAuditCore decides WHAT an entry says (a translation key plus arguments,
 -- testable without the game); this file only resolves those into text with the engine's
 -- translator. Shared by the staff window (F2) and the owner History (F3).
 
-require "GENZ_LivestockAudit/GENZ_LivestockAuditCore"
+require "LivestockAudit/LivestockAuditCore"
 
-GENZ_LivestockAuditText = {}
-local Text = GENZ_LivestockAuditText
-local Core = GENZ_LivestockAuditCore
+LivestockAuditText = {}
+local Text = LivestockAuditText
+local Core = LivestockAuditCore
 
 local function resolve(arg)
     if type(arg) == "table" then

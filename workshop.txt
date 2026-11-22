@@ -1,0 +1,6 @@
+version=1
+title=Livestock Audit
+description=An audit trail for animals: the server records claim, release, death with its cause, pregnancy, birth, growth, critical hunger or thirst, and leaving or entering a pen. Staff read it in the Admin Panel; owners read their own animals in the Check Zone window. Changes nothing on its own.
+description=Standalone: animals nobody owns are followed inside pens with no other mod. A claim mod can plug in through LivestockAudit.record and LivestockAudit.registerSource.
+tags=Build 42
+visibility=unlisted

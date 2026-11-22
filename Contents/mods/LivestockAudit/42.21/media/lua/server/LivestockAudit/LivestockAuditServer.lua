@@ -1,11 +1,11 @@
--- GENZ_LivestockAuditServer -- records what happens to each claimed animal (card #192).
+-- LivestockAuditServer -- records what happens to each claimed animal (card #192).
 --
--- Receives animal events through GENZ_LivestockAudit.record (GENZ_LivestockAuditApi; on our
+-- Receives animal events through LivestockAudit.record (LivestockAuditApi; on our
 -- server the creatures domain of GENZ_Equipamentos calls it, card #299), reads the engine,
--- lets GENZ_LivestockAuditCore decide, and writes one entry per event
+-- lets LivestockAuditCore decide, and writes one entry per event
 -- into a server-only ModData store. The store is NEVER transmitted: clients will only get
 -- the slice they ask for (phases F2/F3). Every entry is echoed to the server console with
--- the [GENZ_LivestockAudit] tag.
+-- the [LivestockAudit] tag.
 --
 -- Kinds recorded so far: CLAIMED, RELEASED, DIED, PREGNANT, FERTILIZED, GAVE_BIRTH,
 -- PREGNANCY_ENDED, GREW_UP, CRITICAL (F1a); LEFT_ZONE, ENTERED_ZONE (F1b); ATTACKED,
@@ -19,16 +19,16 @@
 
 if isClient() and not isServer() then return end
 
-require "GENZ_LivestockAudit/GENZ_LivestockAuditApi"
-require "GENZ_LivestockAudit/GENZ_LivestockAuditCore"
+require "LivestockAudit/LivestockAuditApi"
+require "LivestockAudit/LivestockAuditCore"
 
-GENZ_LivestockAuditServer = GENZ_LivestockAuditServer or {}
-local Server = GENZ_LivestockAuditServer
-local Core = GENZ_LivestockAuditCore
-local API = GENZ_LivestockAudit
+LivestockAuditServer = LivestockAuditServer or {}
+local Server = LivestockAuditServer
+local Core = LivestockAuditCore
+local API = LivestockAudit
 
-local MODDATA_KEY = "GENZ_LivestockAudit"
-local LOG_TAG = "[GENZ_LivestockAudit] "
+local MODDATA_KEY = "LivestockAudit"
+local LOG_TAG = "[LivestockAudit] "
 
 local store = nil
 
@@ -39,7 +39,15 @@ local function countKeys(t)
 end
 
 Events.OnInitGlobalModData.Add(function()
-    store = Core.initStore(ModData.getOrCreate(MODDATA_KEY))
+    local current = ModData.getOrCreate(MODDATA_KEY)
+    -- Saves from before the rename hold the history under the old key: copy it once, leave it be.
+    local legacy = ModData.exists(Core.LEGACY_MODDATA_KEY) and ModData.get(Core.LEGACY_MODDATA_KEY) or nil
+    local migrated = Core.migrateLegacyStore(current, legacy)
+    store = Core.initStore(current)
+    if migrated then
+        print(LOG_TAG .. "history of the old name (" .. Core.LEGACY_MODDATA_KEY .. ") copied into " .. MODDATA_KEY
+            .. ": " .. countKeys(store.byAnimal) .. " animal bucket(s)")
+    end
     -- Announce it: a listener that silently failed to start would look exactly like
     -- "nothing happened to any animal". The source registers on OnGameBoot, which the server
     -- fires before loading the world (GameServer.doMinimumInit, 42.21), so this line knows.
@@ -94,7 +102,7 @@ local function zoneKeyOf(animal)
 end
 
 -- ------------------------------------------------------------------ animals nobody owns (F5)
-local UNCLAIMED_ID_KEY = "GENZ_LA_ID"
+local UNCLAIMED_ID_KEY = Core.UNCLAIMED_ID_KEY
 local unclaimedStamps = 0
 
 -- With no claim source nothing is claimed: a server without a claim system has only
@@ -117,7 +125,7 @@ end
 -- its owner the claim.
 local function unclaimedId(animal, inPen)
     local modData = animal:getModData()
-    local id = modData.GENZ_AID or modData[UNCLAIMED_ID_KEY]
+    local id = modData.GENZ_AID or modData[UNCLAIMED_ID_KEY] or modData[Core.LEGACY_UNCLAIMED_ID_KEY]
     if id or not inPen then return id end
     unclaimedStamps = unclaimedStamps + 1
     id = "w" .. tostring(getTimestamp()) .. "_" .. tostring(unclaimedStamps)
