@@ -198,9 +198,11 @@ local handlers = {}
 -- stamp goes, so the animal is filed under its GENZ_AID from now on.
 local function adoptUnclaimedHistory(data)
     local modData = data.animal:getModData()
-    local unclaimed = modData[UNCLAIMED_ID_KEY]
+    -- the new mark, or the one saves from before the rename carry
+    local markKey = modData[UNCLAIMED_ID_KEY] and UNCLAIMED_ID_KEY or Core.LEGACY_UNCLAIMED_ID_KEY
+    local unclaimed = modData[markKey]
     if not unclaimed then return end
-    modData[UNCLAIMED_ID_KEY] = nil
+    modData[markKey] = nil
     Core.merge(store, unclaimed, data.aid)
 end
 

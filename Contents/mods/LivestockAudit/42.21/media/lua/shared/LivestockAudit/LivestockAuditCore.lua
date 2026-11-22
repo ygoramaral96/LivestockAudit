@@ -73,7 +73,7 @@ end
 -- the old content is COPIED in (deep: later writes never touch the old table, so going back is
 -- doing nothing). Returns true when it copied. Run before initStore.
 function Core.migrateLegacyStore(current, legacy)
-    if type(legacy) ~= "table" or isEmpty(legacy) or not isEmptyStore(current) then return false end
+    if type(legacy) ~= "table" or isEmptyStore(legacy) or not isEmptyStore(current) then return false end
     for k, v in pairs(legacy) do current[k] = deepCopy(v) end
     return true
 end
