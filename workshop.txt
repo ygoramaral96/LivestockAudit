@@ -3,7 +3,11 @@ title=Livestock Audit
 description=An audit trail for animals: the server records claim, release, death with its cause, pregnancy, birth, growth, critical hunger or thirst, and leaving or entering a pen. Staff read it in the Admin Panel; owners read their own animals in the Check Zone window. Changes nothing on its own.
 description=Standalone: animals nobody owns are followed inside pens with no other mod. A claim mod can plug in through LivestockAudit.record and LivestockAudit.registerSource.
 description=
+description=[h2]Source code[/h2]
+description=[url=https://github.com/ygoramaral96/LivestockAudit]https://github.com/ygoramaral96/LivestockAudit[/url]
+description=
 description=[h2]License[/h2]
 description=[url=http://theindiestone.com/forums/index.php/topic/2530-mod-permissions/?p=36478][img=http://projectzomboid.com/images/MODS_03.png][/url]
+description=[b]Ask for permission[/b] (The Indie Stone mod permissions badge): the code and art made for this mod are mine. The source is public so you can read it, but reusing it, changing it, re-uploading it or putting it in a modpack needs my permission first. Ask in the comments or on GitHub.
 tags=Build 42
 visibility=unlisted
