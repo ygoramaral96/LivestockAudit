@@ -27,13 +27,6 @@ The mod does not own claims, it audits the ones a claim system has. Two calls, i
 Register on `OnGameBoot` (server) and `OnGameStart` (client): then the order of the two mods in
 `Mods=` does not matter. The full contract is the header of `LivestockAuditApi.lua`.
 
-## Saves from before the rename
-
-This mod used to ship as `GENZ_LivestockAudit`. On the first load, if the new ModData key
-(`LivestockAudit`) is empty and the old one (`GENZ_LivestockAudit`) has data, the history is copied
-across and the old key is left alone. The per-animal mark `GENZ_LA_ID` is still read when the new one
-is missing.
-
 ## Layout
 
 ```
