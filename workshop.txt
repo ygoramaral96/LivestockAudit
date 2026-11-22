@@ -8,7 +8,7 @@ description=[h2]Source code[/h2]
 description=[url=https://github.com/ygoramaral96/LivestockAudit]https://github.com/ygoramaral96/LivestockAudit[/url]
 description=
 description=[h2]License[/h2]
-description=[url=https://theindiestone.com/forums/index.php/topic/2530-mod-permissions/?p=36478][img=https://projectzomboid.com/images/MODS_03.png][/url]
+description=[url=https://theindiestone.com/forums/index.php/topic/2530-mod-permissions/?p=36478][img]https://projectzomboid.com/images/MODS_03.png[/img][/url]
 description=[b]Ask for permission[/b] (The Indie Stone mod permissions badge): the code and art made for this mod are mine. The source is public so you can read it, but reusing it, changing it, re-uploading it or putting it in a modpack needs my permission first. Ask in the comments or on GitHub.
 tags=Build 42
 visibility=unlisted
